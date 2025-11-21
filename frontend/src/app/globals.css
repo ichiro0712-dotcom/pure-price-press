@@ -1,0 +1,146 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-background text-foreground;
+  }
+
+  body {
+    @apply font-sans antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold;
+  }
+}
+
+@layer components {
+  /* Card styles */
+  .card {
+    @apply bg-background-secondary border border-foreground/10 rounded-lg p-6 shadow-lg;
+  }
+
+  .card-hover {
+    @apply transition-all duration-300 hover:shadow-glow hover:border-brand-accent/30;
+  }
+
+  /* Button styles */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply bg-brand-accent hover:bg-brand-accent/80 text-black font-bold;
+  }
+
+  .btn-secondary {
+    @apply bg-background-tertiary hover:bg-foreground/10 text-foreground border border-foreground/20;
+  }
+
+  .btn-danger {
+    @apply bg-drop hover:bg-drop-light text-white;
+  }
+
+  /* Input styles */
+  .input {
+    @apply w-full px-4 py-2 bg-background-tertiary border border-foreground/20 rounded-lg
+           text-foreground placeholder:text-foreground-muted
+           focus:outline-none focus:ring-2 focus:ring-brand-accent focus:border-transparent
+           transition-all duration-200;
+  }
+
+  /* Badge styles */
+  .badge {
+    @apply px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .badge-surge {
+    @apply bg-surge/20 text-surge-light border border-surge/30;
+  }
+
+  .badge-drop {
+    @apply bg-drop/20 text-drop-light border border-drop/30;
+  }
+
+  .badge-critical {
+    @apply bg-critical/20 text-critical-light border border-critical/30 animate-pulse-slow;
+  }
+
+  /* Alert severity badges */
+  .severity-critical {
+    @apply bg-critical/20 text-critical-light border border-critical/50;
+  }
+
+  .severity-high {
+    @apply bg-orange-500/20 text-orange-400 border border-orange-500/50;
+  }
+
+  .severity-medium {
+    @apply bg-yellow-500/20 text-yellow-400 border border-yellow-500/50;
+  }
+
+  .severity-low {
+    @apply bg-blue-500/20 text-blue-400 border border-blue-500/50;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-brand-accent to-brand-gold bg-clip-text text-transparent;
+  }
+
+  .glow-effect {
+    @apply shadow-glow;
+  }
+
+  .animate-slide-in {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-background-secondary;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-foreground/20 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-foreground/30;
+}
+
+/* Loading spinner */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-top-color: #FCD34D;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  animation: spin 0.6s linear infinite;
+}
