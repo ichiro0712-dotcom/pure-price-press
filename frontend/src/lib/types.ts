@@ -3,11 +3,13 @@
  */
 
 export type ConditionOperator = "AND" | "OR";
+export type ChangeDirection = "both" | "increase" | "decrease";
 
 export interface MonitorCondition {
   id?: number;
   interval_minutes: number;
   threshold_percent: number;
+  direction?: ChangeDirection; // 変動方向（both: 両方向, increase: 上昇のみ, decrease: 下落のみ）
   operator?: ConditionOperator; // この条件の前に適用される演算子（最初の条件はnull）
 }
 
@@ -103,4 +105,13 @@ export type AlertSeverity = "critical" | "high" | "medium" | "low";
 export interface PriceData {
   time: number;
   value: number;
+}
+
+export interface TargetPriceData {
+  symbol: string;
+  current_price: number | null;
+  day_change: number | null;
+  month_change: number | null;
+  year_change: number | null;
+  error?: string;
 }

@@ -37,7 +37,7 @@ export default function RootLayout({
                     Pure Price Press
                   </h1>
                   <p className="text-xs text-foreground-muted">
-                    価格こそが真実
+                    ニュースからバイアスを取り除こう
                   </p>
                 </div>
               </Link>
@@ -82,7 +82,7 @@ export default function RootLayout({
                   <span className="font-bold text-foreground">
                     Pure Price Press
                   </span>{" "}
-                  - 価格は事実、ニュースは解釈
+                  - ニュースからバイアスを取り除こう
                 </p>
                 <p className="mt-1">
                   © 2024 Pure Price Press. All rights reserved.

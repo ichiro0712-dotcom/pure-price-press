@@ -322,8 +322,20 @@ class StockMonitor:
 
         change_rate = price_change['change_rate']
 
-        # Check if threshold exceeded
-        if abs(change_rate) >= target.threshold_percent:
+        # Get direction setting (default to 'both' for backwards compatibility)
+        direction = getattr(target, 'direction', 'both')
+
+        # Check if threshold exceeded and direction matches
+        threshold_exceeded = abs(change_rate) >= target.threshold_percent
+
+        # Check direction
+        direction_matches = (
+            direction == 'both' or
+            (direction == 'increase' and change_rate > 0) or
+            (direction == 'decrease' and change_rate < 0)
+        )
+
+        if threshold_exceeded and direction_matches:
             print(f"🚨 Alert triggered for {target.symbol}: {change_rate:+.2f}%")
 
             # Perform AI analysis
@@ -371,7 +383,10 @@ class StockMonitor:
                 crud.mark_alert_notified(db, alert.id, error="Failed to send Discord notification")
 
         else:
-            print(f"  {target.symbol}: {change_rate:+.2f}% (below threshold)")
+            if threshold_exceeded and not direction_matches:
+                print(f"  {target.symbol}: {change_rate:+.2f}% (direction mismatch: {direction})")
+            else:
+                print(f"  {target.symbol}: {change_rate:+.2f}% (below threshold)")
 
     def run_monitoring_cycle(self) -> None:
         """

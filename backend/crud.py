@@ -51,7 +51,20 @@ def create_monitor_target(
 ) -> models.MonitorTarget:
     """Create a new monitor target."""
     try:
-        db_target = models.MonitorTarget(**target.model_dump())
+        target_data = target.model_dump()
+        # Convert conditions list to JSON if present
+        if 'conditions' in target_data and target_data['conditions']:
+            target_data['conditions_json'] = [
+                c.model_dump() if hasattr(c, 'model_dump') else (c.dict() if hasattr(c, 'dict') else c)
+                for c in target_data['conditions']
+            ]
+            del target_data['conditions']
+        elif 'conditions' in target_data:
+            # conditionsがNoneまたは空の場合もconditions_jsonをNoneにする
+            target_data['conditions_json'] = None
+            del target_data['conditions']
+
+        db_target = models.MonitorTarget(**target_data)
         db.add(db_target)
         db.commit()
         db.refresh(db_target)
@@ -74,6 +87,19 @@ def update_monitor_target(
             return None
 
         update_data = target_update.model_dump(exclude_unset=True)
+
+        # Convert conditions list to JSON if present
+        if 'conditions' in update_data:
+            if update_data['conditions'] is not None:
+                update_data['conditions_json'] = [
+                    c.model_dump() if hasattr(c, 'model_dump') else (c.dict() if hasattr(c, 'dict') else c)
+                    for c in update_data['conditions']
+                ]
+            else:
+                # conditionsがNoneの場合はconditions_jsonもNoneにする
+                update_data['conditions_json'] = None
+            del update_data['conditions']
+
         for field, value in update_data.items():
             setattr(db_target, field, value)
 
@@ -225,6 +251,22 @@ def get_critical_alerts_count(db: Session, days: int = 1) -> int:
     except Exception as e:
         print(f"Error getting critical alerts count: {e}")
         return 0
+
+
+def delete_alert(db: Session, alert_id: int) -> bool:
+    """Delete an alert."""
+    try:
+        db_alert = get_alert(db, alert_id)
+        if not db_alert:
+            return False
+
+        db.delete(db_alert)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting alert: {e}")
+        raise e
 
 
 # SystemConfig CRUD

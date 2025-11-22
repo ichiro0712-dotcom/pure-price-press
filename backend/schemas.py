@@ -3,7 +3,16 @@ Pydantic schemas for API request/response validation.
 """
 from pydantic import BaseModel, Field, validator
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
+
+
+# MonitorCondition Schema
+class MonitorCondition(BaseModel):
+    """Schema for a single monitoring condition."""
+    interval_minutes: int = Field(..., description="Check interval in minutes", ge=1, le=10080)
+    threshold_percent: float = Field(..., description="Alert threshold percentage", ge=0.1, le=100.0)
+    direction: Optional[str] = Field('both', description="Change direction ('both', 'increase', 'decrease')")
+    operator: Optional[str] = Field(None, description="Logical operator ('AND', 'OR'), null for first condition")
 
 
 # MonitorTarget Schemas
@@ -13,6 +22,8 @@ class MonitorTargetBase(BaseModel):
     name: Optional[str] = Field(None, description="Display name", max_length=100)
     interval_minutes: int = Field(5, description="Check interval in minutes", ge=1, le=1440)
     threshold_percent: float = Field(5.0, description="Alert threshold percentage", ge=0.1, le=100.0)
+    direction: str = Field('both', description="Change direction ('both', 'increase', 'decrease')")
+    conditions: Optional[List[MonitorCondition]] = Field(None, description="List of monitoring conditions for AND/OR logic")
     is_active: bool = Field(True, description="Whether monitoring is active")
 
     @validator('symbol')
@@ -31,12 +42,21 @@ class MonitorTargetUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=100)
     interval_minutes: Optional[int] = Field(None, ge=1, le=1440)
     threshold_percent: Optional[float] = Field(None, ge=0.1, le=100.0)
+    direction: Optional[str] = Field(None, description="Change direction ('both', 'increase', 'decrease')")
+    conditions: Optional[List[MonitorCondition]] = Field(None, description="List of monitoring conditions")
     is_active: Optional[bool] = None
 
 
-class MonitorTargetInDB(MonitorTargetBase):
+class MonitorTargetInDB(BaseModel):
     """Schema for monitor target from database."""
     id: int
+    symbol: str
+    name: Optional[str] = None
+    interval_minutes: int
+    threshold_percent: float
+    direction: str
+    conditions: Optional[List[MonitorCondition]] = None
+    is_active: bool
     created_at: datetime
     updated_at: datetime
     last_price: Optional[float] = None
@@ -44,6 +64,42 @@ class MonitorTargetInDB(MonitorTargetBase):
 
     class Config:
         from_attributes = True
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        """Override model_validate to handle conditions_json -> conditions mapping."""
+        import json as json_module
+        if hasattr(obj, '__dict__'):
+            # This is an ORM object
+            conditions_data = None
+            if hasattr(obj, 'conditions_json') and obj.conditions_json:
+                # SQLite returns JSON as string, need to parse it
+                if isinstance(obj.conditions_json, str):
+                    try:
+                        conditions_data = json_module.loads(obj.conditions_json)
+                    except:
+                        conditions_data = None
+                else:
+                    conditions_data = obj.conditions_json
+
+            data = {
+                'id': obj.id,
+                'symbol': obj.symbol,
+                'name': obj.name,
+                'interval_minutes': obj.interval_minutes,
+                'threshold_percent': obj.threshold_percent,
+                'direction': obj.direction,
+                'conditions': conditions_data,
+                'is_active': obj.is_active,
+                'created_at': obj.created_at,
+                'updated_at': obj.updated_at,
+                'last_price': obj.last_price,
+                'last_check_at': obj.last_check_at,
+            }
+            return cls(**data)
+        else:
+            # Regular dict validation
+            return super().model_validate(obj, **kwargs)
 
 
 # AlertHistory Schemas

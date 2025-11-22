@@ -28,7 +28,7 @@ async def get_monitor_targets(
     """
     try:
         targets = crud.get_monitor_targets(db, skip=skip, limit=limit, active_only=active_only)
-        return targets
+        return [schemas.MonitorTargetInDB.model_validate(t) for t in targets]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch targets: {str(e)}")
 
@@ -42,7 +42,7 @@ async def get_monitor_target(
     target = crud.get_monitor_target(db, target_id)
     if not target:
         raise HTTPException(status_code=404, detail="Target not found")
-    return target
+    return schemas.MonitorTargetInDB.model_validate(target)
 
 
 @router.post("/targets", response_model=schemas.MonitorTargetInDB, status_code=201)
@@ -66,7 +66,8 @@ async def create_monitor_target(
         )
 
     try:
-        return crud.create_monitor_target(db, target)
+        created_target = crud.create_monitor_target(db, target)
+        return schemas.MonitorTargetInDB.model_validate(created_target)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create target: {str(e)}")
 
@@ -82,7 +83,7 @@ async def update_monitor_target(
         updated_target = crud.update_monitor_target(db, target_id, target_update)
         if not updated_target:
             raise HTTPException(status_code=404, detail="Target not found")
-        return updated_target
+        return schemas.MonitorTargetInDB.model_validate(updated_target)
     except HTTPException:
         raise
     except Exception as e:
@@ -152,6 +153,23 @@ async def create_alert(
         return crud.create_alert(db, alert)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create alert: {str(e)}")
+
+
+@router.delete("/alerts/{alert_id}", response_model=schemas.MessageResponse)
+async def delete_alert(
+    alert_id: int,
+    db: Session = Depends(get_db)
+):
+    """Delete an alert."""
+    try:
+        success = crud.delete_alert(db, alert_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        return schemas.MessageResponse(message=f"Alert {alert_id} deleted successfully")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete alert: {str(e)}")
 
 
 # SystemConfig Routes
@@ -228,6 +246,76 @@ async def get_dashboard_stats(db: Session = Depends(get_db)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch stats: {str(e)}")
+
+
+# Price Data Routes
+@router.get("/targets/{target_id}/price")
+async def get_target_price(
+    target_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get current price and comparison data for a target.
+    Returns current price, day/month/year change percentages.
+    """
+    from monitor import StockMonitor
+    import yfinance as yf
+    from datetime import datetime, timedelta
+
+    # Get target
+    target = crud.get_monitor_target(db, target_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Target not found")
+
+    try:
+        ticker = yf.Ticker(target.symbol)
+
+        # Get historical data for comparisons (use daily data which is more reliable)
+        hist_1y = ticker.history(period="1y", interval="1d")
+
+        if hist_1y.empty or len(hist_1y) < 2:
+            return {
+                "symbol": target.symbol,
+                "current_price": None,
+                "day_change": None,
+                "month_change": None,
+                "year_change": None,
+                "error": "No data available"
+            }
+
+        # Get current price (most recent close)
+        current_price = float(hist_1y['Close'].iloc[-1])
+
+        # Calculate changes
+        day_change = None
+        month_change = None
+        year_change = None
+
+        # Day change (1 trading day ago)
+        if len(hist_1y) >= 2:
+            price_1d = float(hist_1y['Close'].iloc[-2])
+            day_change = ((current_price - price_1d) / price_1d) * 100
+
+        # Month change (approximately 21 trading days)
+        if len(hist_1y) >= 22:
+            price_1m = float(hist_1y['Close'].iloc[-22])
+            month_change = ((current_price - price_1m) / price_1m) * 100
+
+        # Year change (approximately 252 trading days or earliest available)
+        if len(hist_1y) >= 2:
+            price_1y = float(hist_1y['Close'].iloc[0])
+            year_change = ((current_price - price_1y) / price_1y) * 100
+
+        return {
+            "symbol": target.symbol,
+            "current_price": current_price,
+            "day_change": day_change,
+            "month_change": month_change,
+            "year_change": year_change
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch price data: {str(e)}")
 
 
 # Health Check

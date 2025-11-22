@@ -1,7 +1,7 @@
 """
 Database models for Pure Price Press.
 """
-from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text, JSON
 from sqlalchemy.sql import func
 from database import Base
 from datetime import datetime
@@ -17,6 +17,8 @@ class MonitorTarget(Base):
         name: Display name for the stock
         interval_minutes: Monitoring interval in minutes
         threshold_percent: Alert threshold as percentage (e.g., 5.0 for 5%)
+        direction: Change direction ('both', 'increase', 'decrease')
+        conditions_json: JSON array of monitoring conditions (for AND/OR logic)
         is_active: Whether monitoring is active for this target
         created_at: Timestamp when target was added
         updated_at: Timestamp when target was last updated
@@ -30,6 +32,8 @@ class MonitorTarget(Base):
     name = Column(String(100), nullable=True)
     interval_minutes = Column(Integer, default=5, nullable=False)
     threshold_percent = Column(Float, default=5.0, nullable=False)
+    direction = Column(String(20), default='both', nullable=False)  # 'both', 'increase', 'decrease'
+    conditions_json = Column(JSON, nullable=True)  # JSON array of conditions for AND/OR logic
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

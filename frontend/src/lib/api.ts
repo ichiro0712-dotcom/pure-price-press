@@ -11,6 +11,7 @@ import type {
   SystemConfig,
   DashboardStats,
   MessageResponse,
+  TargetPriceData,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -125,6 +126,13 @@ export const monitorTargetsApi = {
       method: "DELETE",
     });
   },
+
+  /**
+   * Get price data for a target
+   */
+  getPrice: async (id: number): Promise<TargetPriceData> => {
+    return fetchApi<TargetPriceData>(`/api/targets/${id}/price`);
+  },
 };
 
 // Alerts API
@@ -165,6 +173,15 @@ export const alertsApi = {
     return fetchApi<AlertHistory>("/api/alerts", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Delete an alert
+   */
+  delete: async (id: number): Promise<MessageResponse> => {
+    return fetchApi<MessageResponse>(`/api/alerts/${id}`, {
+      method: "DELETE",
     });
   },
 };

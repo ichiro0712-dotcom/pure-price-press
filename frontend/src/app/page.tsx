@@ -25,7 +25,7 @@ export default function Dashboard() {
     try {
       const [targetsData, alertsData, statsData] = await Promise.all([
         monitorTargetsApi.getAll(),
-        alertsApi.getAll({ limit: 10 }),
+        alertsApi.getAll({ limit: 50 }),
         dashboardApi.getStats(),
       ]);
 
@@ -62,6 +62,15 @@ export default function Dashboard() {
     }
   };
 
+  const handleDeleteAlert = async (id: number) => {
+    try {
+      await alertsApi.delete(id);
+      await fetchData();
+    } catch (error) {
+      console.error("Failed to delete alert:", error);
+    }
+  };
+
   const handleDelete = async (id: number) => {
     try {
       await monitorTargetsApi.delete(id);
@@ -79,10 +88,7 @@ export default function Dashboard() {
           Pure Price Press
         </h1>
         <p className="text-lg text-foreground-secondary max-w-2xl mx-auto">
-          バイアスのかかっていない真実のニュースをお金の動きから分析する
-        </p>
-        <p className="text-sm text-foreground-muted mt-2">
-          価格は事実、ニュースは解釈
+          マーケット変動から主要ニュースをピックアップ、重要度を数値化
         </p>
       </div>
 
@@ -153,10 +159,10 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column - Monitor Targets */}
+        {/* Left Column - Alert Stocks */}
         <div className="lg:col-span-1">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">監視銘柄</h2>
+            <h2 className="text-2xl font-bold">アラート銘柄</h2>
             <button
               onClick={handleRefresh}
               disabled={refreshing}
@@ -170,20 +176,20 @@ export default function Dashboard() {
           </div>
 
           {loading ? (
-            <div className="space-y-4">
-              {[...Array(2)].map((_, i) => (
+            <div className="space-y-3">
+              {[...Array(5)].map((_, i) => (
                 <div key={i} className="card animate-pulse">
-                  <div className="h-32"></div>
+                  <div className="h-16"></div>
                 </div>
               ))}
             </div>
-          ) : targets.length === 0 ? (
+          ) : alerts.length === 0 ? (
             <div className="card text-center py-12">
               <div className="w-16 h-16 bg-foreground/5 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Activity className="w-8 h-8 text-foreground-muted" />
+                <Bell className="w-8 h-8 text-foreground-muted" />
               </div>
               <h3 className="text-lg font-semibold text-foreground-muted mb-2">
-                まだ銘柄がありません
+                アラートはまだありません
               </h3>
               <p className="text-sm text-foreground-muted mb-4">
                 銘柄登録ページから監視する銘柄を追加してください
@@ -193,40 +199,74 @@ export default function Dashboard() {
               </a>
             </div>
           ) : (
-            <div className="space-y-4">
-              {targets.map((target) => (
-                <MonitorCard
-                  key={target.id}
-                  target={target}
-                  onToggleActive={handleToggleActive}
-                  onDelete={handleDelete}
-                />
+            <div className="space-y-2 max-h-[700px] overflow-y-auto pr-2">
+              {alerts.slice(0, 50).map((alert) => (
+                <div
+                  key={alert.id}
+                  className="card hover:border-brand-accent/50 transition-colors p-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-base font-bold text-foreground truncate">
+                          {alert.symbol}
+                        </span>
+                        <span
+                          className={`text-sm font-semibold whitespace-nowrap ${
+                            alert.change_rate > 0
+                              ? "text-green-500"
+                              : "text-red-500"
+                          }`}
+                        >
+                          {alert.change_rate > 0 ? "↑" : "↓"}{" "}
+                          {Math.abs(alert.change_rate).toFixed(2)}%
+                        </span>
+                      </div>
+                      <p className="text-xs text-foreground-muted">
+                        {new Date(alert.triggered_at).toLocaleString("ja-JP", {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteAlert(alert.id)}
+                      className="text-foreground-muted hover:text-red-500 transition-colors px-2 py-1 text-lg flex-shrink-0"
+                      title="削除"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}
         </div>
 
-        {/* Right Column - Alert Timeline */}
+        {/* Right Column - NEWS */}
         <div className="lg:col-span-2">
           <div className="mb-4">
-            <h2 className="text-2xl font-bold">最新アラート</h2>
+            <h2 className="text-2xl font-bold">NEWS</h2>
             <p className="text-sm text-foreground-muted mt-1">
-              Pure Price Pressが検知した最新の価格変動
+              重要度の高いニュースから順に表示
             </p>
           </div>
 
-          <AlertTimeline alerts={alerts} loading={loading} />
-
-          {!loading && alerts.length > 0 && (
-            <div className="mt-6 text-center">
-              <a
-                href="/alerts"
-                className="text-brand-accent hover:text-brand-gold transition-colors"
-              >
-                すべてのアラートを見る →
-              </a>
+          <div className="card">
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-foreground/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Activity className="w-8 h-8 text-foreground-muted" />
+              </div>
+              <h3 className="text-lg font-semibold text-foreground-muted mb-2">
+                ニュース機能は準備中です
+              </h3>
+              <p className="text-sm text-foreground-muted">
+                アラート発生時に関連ニュースを自動収集し、重要度順に表示します
+              </p>
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
