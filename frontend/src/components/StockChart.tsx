@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { createChart, ColorType, IChartApi, ISeriesApi } from "lightweight-charts";
+import { createChart, ColorType, IChartApi, ISeriesApi, UTCTimestamp } from "lightweight-charts";
 import type { PriceData } from "@/lib/types";
 
 interface StockChartProps {
@@ -69,13 +69,17 @@ export default function StockChart({
 
     seriesRef.current = areaSeries;
 
-    // Set data
-    areaSeries.setData(data);
+    // Set data - convert time to UTCTimestamp
+    const chartData = data.map((d) => ({
+      time: d.time as UTCTimestamp,
+      value: d.value,
+    }));
+    areaSeries.setData(chartData);
 
     // Add marker for alert time if provided
     if (alertTime) {
       const alertMarker = {
-        time: alertTime,
+        time: alertTime as UTCTimestamp,
         position: "inBar" as const,
         color: "#EF4444",
         shape: "arrowDown" as const,

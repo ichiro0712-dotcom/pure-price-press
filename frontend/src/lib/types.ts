@@ -10,15 +10,17 @@ export interface MonitorCondition {
   interval_minutes: number;
   threshold_percent: number;
   direction?: ChangeDirection; // 変動方向（both: 両方向, increase: 上昇のみ, decrease: 下落のみ）
-  operator?: ConditionOperator; // この条件の前に適用される演算子（最初の条件はnull）
+  operator?: ConditionOperator | null; // この条件の前に適用される演算子（最初の条件はnull）
 }
 
 export interface MonitorTarget {
   id: number;
   symbol: string;
   name: string | null;
+  category: string | null; // カテゴリー
   interval_minutes: number; // 後方互換性のため残す（デフォルト条件）
   threshold_percent: number; // 後方互換性のため残す（デフォルト条件）
+  direction: ChangeDirection; // 変動方向
   conditions?: MonitorCondition[]; // 複数の監視条件
   is_active: boolean;
   created_at: string;
@@ -30,16 +32,20 @@ export interface MonitorTarget {
 export interface MonitorTargetCreate {
   symbol: string;
   name?: string;
+  category?: string;
   interval_minutes?: number;
   threshold_percent?: number;
+  direction?: ChangeDirection;
   conditions?: MonitorCondition[];
   is_active?: boolean;
 }
 
 export interface MonitorTargetUpdate {
   name?: string;
+  category?: string;
   interval_minutes?: number;
   threshold_percent?: number;
+  direction?: ChangeDirection;
   conditions?: MonitorCondition[];
   is_active?: boolean;
 }
@@ -80,6 +86,7 @@ export interface SystemConfig {
   value: string;
   description: string | null;
   updated_at: string;
+  is_set?: boolean; // 値が設定されているかどうか（マスク時の判定用）
 }
 
 export interface DashboardStats {

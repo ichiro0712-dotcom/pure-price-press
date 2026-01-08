@@ -20,7 +20,8 @@ class MonitorTargetBase(BaseModel):
     """Base schema for MonitorTarget."""
     symbol: str = Field(..., description="Stock ticker symbol", max_length=20)
     name: Optional[str] = Field(None, description="Display name", max_length=100)
-    interval_minutes: int = Field(5, description="Check interval in minutes", ge=1, le=1440)
+    category: Optional[str] = Field(None, description="Category for grouping", max_length=100)
+    interval_minutes: int = Field(5, description="Check interval in minutes", ge=1, le=5256000)
     threshold_percent: float = Field(5.0, description="Alert threshold percentage", ge=0.1, le=100.0)
     direction: str = Field('both', description="Change direction ('both', 'increase', 'decrease')")
     conditions: Optional[List[MonitorCondition]] = Field(None, description="List of monitoring conditions for AND/OR logic")
@@ -40,7 +41,8 @@ class MonitorTargetCreate(MonitorTargetBase):
 class MonitorTargetUpdate(BaseModel):
     """Schema for updating an existing monitor target."""
     name: Optional[str] = Field(None, max_length=100)
-    interval_minutes: Optional[int] = Field(None, ge=1, le=1440)
+    category: Optional[str] = Field(None, max_length=100)
+    interval_minutes: Optional[int] = Field(None, ge=1, le=5256000)
     threshold_percent: Optional[float] = Field(None, ge=0.1, le=100.0)
     direction: Optional[str] = Field(None, description="Change direction ('both', 'increase', 'decrease')")
     conditions: Optional[List[MonitorCondition]] = Field(None, description="List of monitoring conditions")
@@ -52,6 +54,7 @@ class MonitorTargetInDB(BaseModel):
     id: int
     symbol: str
     name: Optional[str] = None
+    category: Optional[str] = None
     interval_minutes: int
     threshold_percent: float
     direction: str
@@ -86,6 +89,7 @@ class MonitorTargetInDB(BaseModel):
                 'id': obj.id,
                 'symbol': obj.symbol,
                 'name': obj.name,
+                'category': obj.category,
                 'interval_minutes': obj.interval_minutes,
                 'threshold_percent': obj.threshold_percent,
                 'direction': obj.direction,
@@ -161,6 +165,43 @@ class SystemConfigInDB(SystemConfigBase):
         from_attributes = True
 
 
+class SystemConfigPublic(BaseModel):
+    """Schema for system config returned to frontend (with masked sensitive values)."""
+    id: int
+    key: str
+    value: str
+    description: Optional[str] = None
+    updated_at: datetime
+    is_set: bool = True  # 値が設定されているかどうか
+
+    class Config:
+        from_attributes = True
+
+    @classmethod
+    def from_config(cls, config) -> "SystemConfigPublic":
+        """Create a public config with masked sensitive values."""
+        sensitive_keys = {"openai_api_key", "discord_webhook_url", "alpha_vantage_api_key", "vapid_private_key"}
+
+        value = config.value
+        is_set = bool(value and value.strip())
+
+        if config.key in sensitive_keys and is_set:
+            # マスク表示（最初と最後の数文字のみ表示）
+            if len(value) > 8:
+                value = value[:4] + "..." + value[-4:]
+            else:
+                value = "****"
+
+        return cls(
+            id=config.id,
+            key=config.key,
+            value=value,
+            description=config.description,
+            updated_at=config.updated_at,
+            is_set=is_set
+        )
+
+
 # Response Schemas
 class MessageResponse(BaseModel):
     """Generic message response."""
@@ -191,3 +232,40 @@ class PriceUpdate(BaseModel):
     change_rate: float
     timestamp: datetime
     volume: Optional[float] = None
+
+
+# PushSubscription Schemas
+class PushSubscriptionKeys(BaseModel):
+    """Keys for push subscription."""
+    p256dh: str = Field(..., description="Client public key")
+    auth: str = Field(..., description="Authentication secret")
+
+
+class PushSubscriptionCreate(BaseModel):
+    """Schema for creating a push subscription."""
+    endpoint: str = Field(..., description="Push service endpoint URL")
+    keys: PushSubscriptionKeys = Field(..., description="Subscription keys")
+    expirationTime: Optional[int] = Field(None, description="Expiration time (unused)")
+
+
+class PushSubscriptionInDB(BaseModel):
+    """Schema for push subscription from database."""
+    id: int
+    endpoint: str
+    p256dh: str
+    auth: str
+    created_at: datetime
+    last_used_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class PushUnsubscribe(BaseModel):
+    """Schema for unsubscribing from push notifications."""
+    endpoint: str = Field(..., description="Push service endpoint URL to unsubscribe")
+
+
+class VapidPublicKey(BaseModel):
+    """VAPID public key response."""
+    publicKey: str

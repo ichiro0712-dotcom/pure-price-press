@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { configApi } from "@/lib/api";
+import { logger } from "@/lib/logger";
 import { X, Save, Settings as SettingsIcon } from "lucide-react";
 
 interface SystemConfigModalProps {
@@ -42,7 +43,7 @@ export default function SystemConfigModal({
       if (dataSource) setPriceDataSource(dataSource.value);
       if (avKey) setAlphaVantageKey(avKey.value);
     } catch (error) {
-      console.error("Failed to fetch configs:", error);
+      logger.error("Failed to fetch configs:", error);
     }
   };
 

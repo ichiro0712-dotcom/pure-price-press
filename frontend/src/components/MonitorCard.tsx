@@ -9,6 +9,7 @@ import {
   cn,
 } from "@/lib/utils";
 import { formatInterval } from "@/lib/intervals";
+import { logger } from "@/lib/logger";
 import {
   Activity,
   Clock,
@@ -42,7 +43,7 @@ export default function MonitorCard({
     try {
       await onToggleActive(target.id, !target.is_active);
     } catch (error) {
-      console.error("Failed to toggle active state:", error);
+      logger.error("Failed to toggle active state:", error);
     } finally {
       setIsToggling(false);
     }
@@ -56,7 +57,7 @@ export default function MonitorCard({
     try {
       await onDelete(target.id);
     } catch (error) {
-      console.error("Failed to delete target:", error);
+      logger.error("Failed to delete target:", error);
       setIsDeleting(false);
     }
   };

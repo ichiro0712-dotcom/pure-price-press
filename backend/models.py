@@ -30,11 +30,13 @@ class MonitorTarget(Base):
     id = Column(Integer, primary_key=True, index=True)
     symbol = Column(String(20), unique=True, index=True, nullable=False)
     name = Column(String(100), nullable=True)
+    category = Column(String(100), nullable=True, index=True)  # Category for grouping
     interval_minutes = Column(Integer, default=5, nullable=False)
     threshold_percent = Column(Float, default=5.0, nullable=False)
     direction = Column(String(20), default='both', nullable=False)  # 'both', 'increase', 'decrease'
     conditions_json = Column(JSON, nullable=True)  # JSON array of conditions for AND/OR logic
     is_active = Column(Boolean, default=True, nullable=False)
+    display_order = Column(Integer, default=0, nullable=False)  # Display order for sorting
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     last_price = Column(Float, nullable=True)
@@ -125,3 +127,28 @@ class SystemConfig(Base):
 
     def __repr__(self):
         return f"<SystemConfig(key='{self.key}', value='{self.value[:50]}...')>"
+
+
+class PushSubscription(Base):
+    """
+    Model for Web Push notification subscriptions.
+
+    Attributes:
+        id: Primary key
+        endpoint: Push service endpoint URL (unique)
+        p256dh: Client public key for encryption
+        auth: Authentication secret
+        created_at: Timestamp when subscription was created
+        last_used_at: Timestamp when subscription was last used for notification
+    """
+    __tablename__ = "push_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    endpoint = Column(Text, unique=True, index=True, nullable=False)
+    p256dh = Column(Text, nullable=False)
+    auth = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+
+    def __repr__(self):
+        return f"<PushSubscription(id={self.id}, endpoint='{self.endpoint[:50]}...')>"

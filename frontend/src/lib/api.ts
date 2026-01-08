@@ -133,6 +133,23 @@ export const monitorTargetsApi = {
   getPrice: async (id: number): Promise<TargetPriceData> => {
     return fetchApi<TargetPriceData>(`/api/targets/${id}/price`);
   },
+
+  /**
+   * Reorder monitor targets
+   */
+  reorder: async (targetIds: number[]): Promise<MessageResponse> => {
+    return fetchApi<MessageResponse>("/api/targets/reorder", {
+      method: "POST",
+      body: JSON.stringify(targetIds),
+    });
+  },
+
+  /**
+   * Get all categories
+   */
+  getCategories: async (): Promise<string[]> => {
+    return fetchApi<string[]>("/api/categories");
+  },
 };
 
 // Alerts API
@@ -183,6 +200,16 @@ export const alertsApi = {
     return fetchApi<MessageResponse>(`/api/alerts/${id}`, {
       method: "DELETE",
     });
+  },
+
+  /**
+   * Check for new alerts since a given timestamp
+   */
+  checkNew: async (since?: string): Promise<AlertHistory[]> => {
+    const queryParams = new URLSearchParams();
+    if (since) queryParams.append("since", since);
+    const query = queryParams.toString();
+    return fetchApi<AlertHistory[]>(`/api/alerts/check-new${query ? `?${query}` : ""}`);
   },
 };
 
@@ -239,6 +266,36 @@ export const dashboardApi = {
 // Health Check
 export const healthCheck = async (): Promise<MessageResponse> => {
   return fetchApi<MessageResponse>("/api/health");
+};
+
+// Push Notification API
+export const pushApi = {
+  /**
+   * Subscribe to push notifications
+   */
+  subscribe: async (subscription: PushSubscriptionJSON): Promise<MessageResponse> => {
+    return fetchApi<MessageResponse>("/api/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(subscription),
+    });
+  },
+
+  /**
+   * Unsubscribe from push notifications
+   */
+  unsubscribe: async (endpoint: string): Promise<MessageResponse> => {
+    return fetchApi<MessageResponse>("/api/push/unsubscribe", {
+      method: "DELETE",
+      body: JSON.stringify({ endpoint }),
+    });
+  },
+
+  /**
+   * Get VAPID public key for push subscription
+   */
+  getVapidPublicKey: async (): Promise<{ publicKey: string }> => {
+    return fetchApi<{ publicKey: string }>("/api/push/vapid-public-key");
+  },
 };
 
 // Export ApiError for error handling

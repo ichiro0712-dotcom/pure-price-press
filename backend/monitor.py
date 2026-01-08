@@ -15,6 +15,7 @@ from database import SessionLocal
 import crud
 import schemas
 import models
+import pytz
 
 
 class StockMonitor:
@@ -108,11 +109,21 @@ class StockMonitor:
                 print(f"⚠ Insufficient data for {symbol}")
                 return None
 
-            # Get price from interval_minutes ago
-            target_time = datetime.now() - timedelta(minutes=interval_minutes)
+            # Get price from interval_minutes ago (use timezone-aware datetime)
+            hist_with_time = hist.reset_index()
+
+            # Get timezone from the data if available
+            if len(hist_with_time) > 0 and hasattr(hist_with_time['Datetime'].iloc[0], 'tzinfo') and hist_with_time['Datetime'].iloc[0].tzinfo is not None:
+                tz = hist_with_time['Datetime'].iloc[0].tzinfo
+                target_time = datetime.now(tz) - timedelta(minutes=interval_minutes)
+            else:
+                target_time = datetime.now() - timedelta(minutes=interval_minutes)
+                # Make hist_with_time timezone-naive if needed
+                if hasattr(hist_with_time['Datetime'].iloc[0], 'tzinfo'):
+                    hist_with_time['Datetime'] = hist_with_time['Datetime'].dt.tz_localize(None)
+                    target_time = datetime.now() - timedelta(minutes=interval_minutes)
 
             # Find the closest price to the target time
-            hist_with_time = hist.reset_index()
             hist_with_time['time_diff'] = abs((hist_with_time['Datetime'] - target_time).dt.total_seconds())
             closest_idx = hist_with_time['time_diff'].idxmin()
 

@@ -73,12 +73,11 @@ app = FastAPI(
 
 # CORS Configuration
 # Allow frontend to access the API
-origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-]
+import os
+
+# 環境変数からオリジンを取得（カンマ区切り）、なければデフォルト
+cors_origins_str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001")
+origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -112,24 +111,32 @@ async def root():
 
 
 # Error handlers
+from fastapi.responses import JSONResponse
+
 @app.exception_handler(404)
 async def not_found_handler(request, exc):
     """Custom 404 handler."""
-    return {
-        "detail": "Resource not found",
-        "message": "The requested endpoint does not exist",
-        "hint": "Visit /docs for API documentation"
-    }
+    return JSONResponse(
+        status_code=404,
+        content={
+            "detail": "Resource not found",
+            "message": "The requested endpoint does not exist",
+            "hint": "Visit /docs for API documentation"
+        }
+    )
 
 
 @app.exception_handler(500)
 async def internal_error_handler(request, exc):
     """Custom 500 handler."""
-    return {
-        "detail": "Internal server error",
-        "message": "Something went wrong on our end",
-        "hint": "Please try again later or contact support"
-    }
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "message": "Something went wrong on our end",
+            "hint": "Please try again later or contact support"
+        }
+    )
 
 
 if __name__ == "__main__":

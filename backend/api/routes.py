@@ -107,6 +107,36 @@ async def delete_monitor_target(
         raise HTTPException(status_code=500, detail=f"Failed to delete target: {str(e)}")
 
 
+@router.post("/targets/reorder", response_model=schemas.MessageResponse)
+async def reorder_targets(
+    target_ids: List[int],
+    db: Session = Depends(get_db)
+):
+    """
+    Reorder monitor targets by providing a list of target IDs in the desired order.
+
+    - **target_ids**: List of target IDs in the new display order
+    """
+    try:
+        success = crud.reorder_monitor_targets(db, target_ids)
+        if not success:
+            raise HTTPException(status_code=400, detail="Failed to reorder targets")
+        return schemas.MessageResponse(message="Targets reordered successfully")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reorder targets: {str(e)}")
+
+
+@router.get("/categories", response_model=List[str])
+async def get_categories(db: Session = Depends(get_db)):
+    """Get all unique categories from monitor targets."""
+    try:
+        return crud.get_categories(db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch categories: {str(e)}")
+
+
 # AlertHistory Routes
 @router.get("/alerts", response_model=List[schemas.AlertHistoryInDB])
 async def get_alerts(
@@ -173,11 +203,12 @@ async def delete_alert(
 
 
 # SystemConfig Routes
-@router.get("/config", response_model=List[schemas.SystemConfigInDB])
+@router.get("/config", response_model=List[schemas.SystemConfigPublic])
 async def get_all_configs(db: Session = Depends(get_db)):
-    """Get all system configurations."""
+    """Get all system configurations (with sensitive values masked)."""
     try:
-        return crud.get_all_configs(db)
+        configs = crud.get_all_configs(db)
+        return [schemas.SystemConfigPublic.from_config(c) for c in configs]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch configs: {str(e)}")
 
@@ -316,6 +347,95 @@ async def get_target_price(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch price data: {str(e)}")
+
+
+# Check New Alerts (for polling/push notification)
+@router.get("/alerts/check-new", response_model=List[schemas.AlertHistoryInDB])
+async def check_new_alerts(
+    since: Optional[str] = Query(None, description="ISO format timestamp to check alerts since"),
+    db: Session = Depends(get_db)
+):
+    """
+    Check for new alerts since a given timestamp.
+    Used by frontend for polling or Service Worker for push notifications.
+
+    - **since**: ISO format timestamp (e.g., "2024-01-01T00:00:00Z")
+    """
+    from datetime import datetime
+    try:
+        if since:
+            since_dt = datetime.fromisoformat(since.replace('Z', '+00:00'))
+            alerts = crud.get_alerts_since(db, since_dt)
+        else:
+            # If no since provided, get alerts from last 5 minutes
+            from datetime import timedelta
+            since_dt = datetime.utcnow() - timedelta(minutes=5)
+            alerts = crud.get_alerts_since(db, since_dt)
+        return alerts
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid timestamp format: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to check new alerts: {str(e)}")
+
+
+# Push Notification Routes
+@router.post("/push/subscribe", response_model=schemas.MessageResponse)
+async def subscribe_push(
+    subscription: schemas.PushSubscriptionCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Subscribe to push notifications.
+    Stores the push subscription for later use.
+    """
+    try:
+        crud.create_push_subscription(
+            db,
+            endpoint=subscription.endpoint,
+            p256dh=subscription.keys.p256dh,
+            auth=subscription.keys.auth
+        )
+        return schemas.MessageResponse(message="Successfully subscribed to push notifications")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to subscribe: {str(e)}")
+
+
+@router.delete("/push/unsubscribe", response_model=schemas.MessageResponse)
+async def unsubscribe_push(
+    unsubscribe: schemas.PushUnsubscribe,
+    db: Session = Depends(get_db)
+):
+    """
+    Unsubscribe from push notifications.
+    Removes the push subscription from the database.
+    """
+    try:
+        success = crud.delete_push_subscription(db, unsubscribe.endpoint)
+        if not success:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        return schemas.MessageResponse(message="Successfully unsubscribed from push notifications")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to unsubscribe: {str(e)}")
+
+
+@router.get("/push/vapid-public-key", response_model=schemas.VapidPublicKey)
+async def get_vapid_public_key(db: Session = Depends(get_db)):
+    """
+    Get the VAPID public key for push subscription.
+    The public key is required by the browser to subscribe to push notifications.
+    """
+    # Get from system config or use default
+    config = crud.get_config(db, "vapid_public_key")
+    if config:
+        return schemas.VapidPublicKey(publicKey=config.value)
+
+    # If no VAPID key configured, return placeholder
+    # In production, you should generate VAPID keys and store them
+    return schemas.VapidPublicKey(
+        publicKey="BPlaceholder-VAPID-Key-Replace-With-Real-Generated-Key"
+    )
 
 
 # Health Check

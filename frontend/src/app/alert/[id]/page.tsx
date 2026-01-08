@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { alertsApi } from "@/lib/api";
+import { logger } from "@/lib/logger";
 import type { AlertHistory, PriceData } from "@/lib/types";
 import StockChart from "@/components/StockChart";
 import {
@@ -49,7 +50,7 @@ export default function AlertDetailPage() {
         );
         setChartData(mockData);
       } catch (error) {
-        console.error("Failed to fetch alert:", error);
+        logger.error("Failed to fetch alert:", error);
       } finally {
         setLoading(false);
       }

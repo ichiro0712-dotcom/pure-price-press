@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { monitorTargetsApi } from "@/lib/api";
-import type { MonitorTarget, MonitorTargetCreate, MonitorCondition, ConditionOperator, ChangeDirection, TargetPriceData } from "@/lib/types";
-import MonitorCard from "@/components/MonitorCard";
+import React, { useState } from "react";
+import { useTargets, useCategories, useCreateTarget, useUpdateTarget, useDeleteTarget, useReorderTargets } from "@/hooks/useTargets";
+import { usePriceDataBatch } from "@/hooks/usePriceData";
+import type { MonitorTarget, MonitorTargetCreate, MonitorCondition, ConditionOperator, ChangeDirection } from "@/lib/types";
+import TargetListItem from "@/components/TargetListItem";
+import Skeleton from "@/components/Skeleton";
 import {
   INTERVAL_OPTIONS,
   DEFAULT_INTERVAL,
@@ -14,28 +16,40 @@ import {
   AlertCircle,
   CheckCircle,
   Trash2,
-  GripVertical,
-  Edit,
   X,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 export default function TargetsPage() {
-  const [targets, setTargets] = useState<MonitorTarget[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  // React Query hooks
+  const { data: targets = [], isLoading: targetsLoading } = useTargets();
+  const { data: categories = [] } = useCategories();
+  const { priceData } = usePriceDataBatch(targets, targets.length > 0);
+
+  // Mutations
+  const createTarget = useCreateTarget();
+  const updateTarget = useUpdateTarget();
+  const deleteTarget = useDeleteTarget();
+  const reorderTargets = useReorderTargets();
+
+  // Local UI state
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [priceData, setPriceData] = useState<Record<number, TargetPriceData>>({});
+  const [draggedTarget, setDraggedTarget] = useState<MonitorTarget | null>(null);
+  const [localTargets, setLocalTargets] = useState<MonitorTarget[] | null>(null);
   const [editingTarget, setEditingTarget] = useState<MonitorTarget | null>(null);
   const [editConditions, setEditConditions] = useState<MonitorCondition[]>([]);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   // Form state for new target
   const [newTarget, setNewTarget] = useState<MonitorTargetCreate>({
     symbol: "",
     name: "",
+    category: "",
     is_active: true,
   });
 
@@ -48,40 +62,8 @@ export default function TargetsPage() {
     },
   ]);
 
-  const fetchTargets = async () => {
-    try {
-      const data = await monitorTargetsApi.getAll();
-      setTargets(data);
-
-      // Fetch price data for all targets
-      const pricePromises = data.map(async (target) => {
-        try {
-          const price = await monitorTargetsApi.getPrice(target.id);
-          return { id: target.id, data: price };
-        } catch (error) {
-          console.error(`Failed to fetch price for ${target.symbol}:`, error);
-          return null;
-        }
-      });
-
-      const prices = await Promise.all(pricePromises);
-      const priceMap: Record<number, TargetPriceData> = {};
-      prices.forEach((item) => {
-        if (item) {
-          priceMap[item.id] = item.data;
-        }
-      });
-      setPriceData(priceMap);
-    } catch (error) {
-      console.error("Failed to fetch targets:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTargets();
-  }, []);
+  // Use local targets during drag, otherwise use query data
+  const displayTargets = localTargets ?? targets;
 
   const showMessage = (type: "success" | "error", text: string) => {
     setMessage({ type, text });
@@ -90,40 +72,35 @@ export default function TargetsPage() {
 
   const handleAddTarget = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
 
-    try {
-      // 条件を含めて送信
-      await monitorTargetsApi.create({
-        ...newTarget,
-        conditions: conditions,
-      });
-      showMessage("success", `${newTarget.symbol} を追加しました`);
-
-      // Reset form
-      setNewTarget({
-        symbol: "",
-        name: "",
-        is_active: true,
-      });
-      setConditions([
-        {
-          interval_minutes: DEFAULT_INTERVAL,
-          threshold_percent: DEFAULT_THRESHOLD,
-          direction: "both",
+    createTarget.mutate(
+      { ...newTarget, conditions },
+      {
+        onSuccess: () => {
+          showMessage("success", `${newTarget.symbol} を追加しました`);
+          // Reset form
+          setNewTarget({
+            symbol: "",
+            name: "",
+            category: "",
+            is_active: true,
+          });
+          setConditions([
+            {
+              interval_minutes: DEFAULT_INTERVAL,
+              threshold_percent: DEFAULT_THRESHOLD,
+              direction: "both",
+            },
+          ]);
         },
-      ]);
-
-      // Refresh targets
-      await fetchTargets();
-    } catch (error: any) {
-      showMessage(
-        "error",
-        error.detail || "銘柄の追加に失敗しました。もう一度お試しください。"
-      );
-    } finally {
-      setSaving(false);
-    }
+        onError: (error: any) => {
+          showMessage(
+            "error",
+            error.detail || "銘柄の追加に失敗しました。もう一度お試しください。"
+          );
+        },
+      }
+    );
   };
 
   // 条件を追加（デフォルトはAND）
@@ -181,45 +158,108 @@ export default function TargetsPage() {
     return groups;
   };
 
+  // カテゴリー別にグループ化
+  const getTargetsByCategory = () => {
+    const grouped: Record<string, MonitorTarget[]> = {};
+    displayTargets.forEach((target) => {
+      const category = target.category || "未分類";
+      if (!grouped[category]) {
+        grouped[category] = [];
+      }
+      grouped[category].push(target);
+    });
+    return grouped;
+  };
+
+  // カテゴリーの折りたたみトグル
+  const toggleCategory = (category: string) => {
+    setCollapsedCategories((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
+
   const handleToggleActive = async (id: number, isActive: boolean) => {
-    try {
-      await monitorTargetsApi.update(id, { is_active: isActive });
-      await fetchTargets();
-    } catch (error) {
-      showMessage("error", "銘柄の更新に失敗しました");
-    }
+    updateTarget.mutate(
+      { id, data: { is_active: isActive } },
+      {
+        onError: () => showMessage("error", "銘柄の更新に失敗しました"),
+      }
+    );
   };
 
   const handleDelete = async (id: number) => {
-    try {
-      await monitorTargetsApi.delete(id);
-      showMessage("success", "銘柄を削除しました");
-      await fetchTargets();
-    } catch (error) {
-      showMessage("error", "銘柄の削除に失敗しました");
-    }
+    deleteTarget.mutate(id, {
+      onSuccess: () => showMessage("success", "銘柄を削除しました"),
+      onError: () => showMessage("error", "銘柄の削除に失敗しました"),
+    });
   };
 
   // ドラッグ&ドロップハンドラー
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
+    setDraggedTarget(targets[index]);
+    setLocalTargets([...targets]);
   };
 
   const handleDragOver = (e: React.DragEvent, index: number) => {
     e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
+    if (draggedIndex === null || draggedIndex === index || !localTargets) return;
 
-    const newTargets = [...targets];
+    const newTargets = [...localTargets];
     const draggedItem = newTargets[draggedIndex];
     newTargets.splice(draggedIndex, 1);
     newTargets.splice(index, 0, draggedItem);
 
-    setTargets(newTargets);
+    setLocalTargets(newTargets);
     setDraggedIndex(index);
   };
 
-  const handleDragEnd = () => {
+  // カテゴリーヘッダーへのドロップ
+  const handleCategoryDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleCategoryDrop = (e: React.DragEvent, targetCategory: string) => {
+    e.preventDefault();
+    if (!draggedTarget) return;
+
+    // 未分類の場合はnullに変換
+    const newCategory = targetCategory === "未分類" ? null : targetCategory;
+    const currentCategory = draggedTarget.category || null;
+
+    // カテゴリーが変わった場合のみ更新
+    if (newCategory !== currentCategory) {
+      updateTarget.mutate(
+        { id: draggedTarget.id, data: { category: newCategory || undefined } },
+        {
+          onSuccess: () => {
+            showMessage("success", `${draggedTarget.symbol} を「${targetCategory}」に移動しました`);
+          },
+          onError: () => showMessage("error", "カテゴリーの変更に失敗しました"),
+        }
+      );
+    }
+
     setDraggedIndex(null);
+    setDraggedTarget(null);
+    setLocalTargets(null);
+  };
+
+  const handleDragEnd = async () => {
+    if (draggedIndex !== null && localTargets && draggedTarget) {
+      // カテゴリーが変更されていない場合は並び順を更新
+      const targetIds = localTargets.map((t) => t.id);
+      reorderTargets.mutate(targetIds);
+    }
+    setDraggedIndex(null);
+    setDraggedTarget(null);
+    setLocalTargets(null);
   };
 
   // 編集モーダルを開く
@@ -249,33 +289,33 @@ export default function TargetsPage() {
   const handleSaveEdit = async () => {
     if (!editingTarget) return;
 
-    try {
-      setSaving(true);
+    // 条件の準備：最初の条件のoperatorは常にnullにする
+    const preparedConditions = editConditions.map((cond, index) => ({
+      ...cond,
+      operator: index === 0 ? null : cond.operator,
+    }));
 
-      // 条件の準備：最初の条件のoperatorは常にnullにする
-      const preparedConditions = editConditions.map((cond, index) => ({
-        ...cond,
-        operator: index === 0 ? null : cond.operator,
-      }));
-
-      await monitorTargetsApi.update(editingTarget.id, {
-        name: editingTarget.name || undefined,
-        interval_minutes: preparedConditions[0].interval_minutes,
-        threshold_percent: preparedConditions[0].threshold_percent,
-        direction: preparedConditions[0].direction,
-        conditions: preparedConditions.length > 0 ? preparedConditions : undefined,
-        is_active: editingTarget.is_active,
-      });
-
-      await fetchTargets();
-      showMessage("success", "銘柄を更新しました");
-      handleCloseEdit();
-    } catch (error) {
-      console.error("Update error:", error);
-      showMessage("error", "銘柄の更新に失敗しました");
-    } finally {
-      setSaving(false);
-    }
+    updateTarget.mutate(
+      {
+        id: editingTarget.id,
+        data: {
+          name: editingTarget.name || undefined,
+          category: editingTarget.category || undefined,
+          interval_minutes: preparedConditions[0].interval_minutes,
+          threshold_percent: preparedConditions[0].threshold_percent,
+          direction: preparedConditions[0].direction,
+          conditions: preparedConditions.length > 0 ? preparedConditions : undefined,
+          is_active: editingTarget.is_active,
+        },
+      },
+      {
+        onSuccess: () => {
+          showMessage("success", "銘柄を更新しました");
+          handleCloseEdit();
+        },
+        onError: () => showMessage("error", "銘柄の更新に失敗しました"),
+      }
+    );
   };
 
   // 編集用条件を追加
@@ -314,12 +354,14 @@ export default function TargetsPage() {
     setEditConditions(updated);
   };
 
+  const saving = createTarget.isPending || updateTarget.isPending;
+
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-6xl mx-auto space-y-4 sm:space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">アラート登録</h1>
-        <p className="text-foreground-muted">
+        <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">アラート登録</h1>
+        <p className="text-sm sm:text-base text-foreground-muted">
           監視する銘柄の追加と管理
         </p>
       </div>
@@ -345,29 +387,29 @@ export default function TargetsPage() {
       )}
 
       {/* Add New Target */}
-      <div className="card">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 bg-brand-accent/20 rounded-lg flex items-center justify-center">
-            <Plus className="w-5 h-5 text-brand-accent" />
+      <div className="card p-4 sm:p-6">
+        <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-brand-accent/20 rounded-lg flex items-center justify-center">
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5 text-brand-accent" />
           </div>
           <div>
-            <h2 className="text-xl font-bold">新規アラートを追加</h2>
-            <p className="text-sm text-foreground-muted">
+            <h2 className="text-lg sm:text-xl font-bold">新規アラートを追加</h2>
+            <p className="text-xs sm:text-sm text-foreground-muted">
               価格変動を監視する銘柄を追加
             </p>
           </div>
         </div>
 
         <form onSubmit={handleAddTarget} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             {/* Symbol */}
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">
                 シンボル <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
-                className="input"
+                className="input text-sm sm:text-base"
                 placeholder="例: AAPL, TSLA, ^DJI"
                 value={newTarget.symbol}
                 onChange={(e) =>
@@ -378,59 +420,84 @@ export default function TargetsPage() {
                 }
                 required
               />
-              <p className="text-xs text-foreground-muted mt-1">
-                株式ティッカーシンボル（自動的に大文字に変換されます）
+              <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+                株式ティッカーシンボル
               </p>
             </div>
 
             {/* Name */}
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">
                 名前（任意）
               </label>
               <input
                 type="text"
-                className="input"
+                className="input text-sm sm:text-base"
                 placeholder="例: Apple Inc."
                 value={newTarget.name}
                 onChange={(e) =>
                   setNewTarget({ ...newTarget, name: e.target.value })
                 }
               />
-              <p className="text-xs text-foreground-muted mt-1">
+              <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
                 銘柄の表示名
+              </p>
+            </div>
+
+            {/* Category */}
+            <div className="col-span-1 sm:col-span-2">
+              <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">
+                カテゴリー（任意）
+              </label>
+              <input
+                type="text"
+                className="input text-sm sm:text-base"
+                placeholder="例: 地政学・エネルギー"
+                list="category-list"
+                value={newTarget.category || ""}
+                onChange={(e) =>
+                  setNewTarget({ ...newTarget, category: e.target.value })
+                }
+              />
+              <datalist id="category-list">
+                {categories.map((cat) => (
+                  <option key={cat} value={cat} />
+                ))}
+              </datalist>
+              <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+                銘柄をグループ化するカテゴリー（既存のカテゴリーから選択または新規入力）
               </p>
             </div>
 
           </div>
 
           {/* 監視条件 */}
-          <div className="border-t border-foreground/10 pt-6">
-            <div className="mb-4">
-              <h3 className="text-lg font-bold">監視条件</h3>
-              <p className="text-xs text-foreground-muted mt-1">
-                条件を追加し、AND（かつ）／OR（または）で組み合わせます。連続するANDはグループ化されます。
+          <div className="border-t border-foreground/10 pt-4 sm:pt-6">
+            <div className="mb-3 sm:mb-4">
+              <h3 className="text-base sm:text-lg font-bold">監視条件</h3>
+              <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+                条件を追加し、AND／ORで組み合わせます
               </p>
             </div>
 
             {/* グループ表示 */}
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {getConditionGroups().map((group, groupIndex) => (
                 <div key={groupIndex}>
                   {/* グループの枠 */}
-                  <div className="border-2 border-brand-accent/30 rounded-lg p-4 bg-brand-accent/5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-xs font-bold px-2 py-1 rounded bg-brand-accent/20 text-brand-accent">
+                  <div className="border-2 border-brand-accent/30 rounded-lg p-3 sm:p-4 bg-brand-accent/5">
+                    <div className="flex items-center gap-2 mb-2 sm:mb-3">
+                      <span className="text-[10px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 sm:py-1 rounded bg-brand-accent/20 text-brand-accent">
                         グループ {groupIndex + 1}
                       </span>
                       {group.length > 1 && (
-                        <span className="text-xs text-foreground-muted">
+                        <span className="text-[10px] sm:text-xs text-foreground-muted hidden sm:inline">
                           （すべての条件を満たす）
                         </span>
                       )}
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2 sm:space-y-3">
                       {group.map((condition) => {
                         const conditionIndex = conditions.indexOf(condition);
                         return (
@@ -439,7 +506,7 @@ export default function TargetsPage() {
                             {conditionIndex > 0 && (
                               <div className="flex items-center gap-2 mb-2">
                                 <select
-                                  className="input w-32 text-sm"
+                                  className="input w-24 sm:w-32 text-xs sm:text-sm py-1"
                                   value={condition.operator || "AND"}
                                   onChange={(e) =>
                                     handleUpdateCondition(
@@ -449,27 +516,27 @@ export default function TargetsPage() {
                                     )
                                   }
                                 >
-                                  <option value="AND">AND（かつ）</option>
-                                  <option value="OR">OR（または）</option>
+                                  <option value="AND">AND</option>
+                                  <option value="OR">OR</option>
                                 </select>
-                                <span className="text-xs text-foreground-muted">
+                                <span className="text-[10px] sm:text-xs text-foreground-muted hidden sm:inline">
                                   {condition.operator === "OR"
-                                    ? "→ 新しいグループを開始"
-                                    : "→ 同じグループ内"}
+                                    ? "→ 新グループ"
+                                    : "→ 同グループ"}
                                 </span>
                               </div>
                             )}
 
                             {/* 条件の設定 */}
-                            <div className="bg-background-secondary rounded-lg p-4 flex items-center gap-4">
-                              <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-background-secondary rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                              <div className="flex-1 w-full grid grid-cols-3 gap-2 sm:gap-4">
                                 {/* Interval */}
                                 <div>
-                                  <label className="block text-xs font-medium mb-2">
-                                    チェック間隔
+                                  <label className="block text-[10px] sm:text-xs font-medium mb-1 sm:mb-2">
+                                    間隔
                                   </label>
                                   <select
-                                    className="input w-full"
+                                    className="input w-full text-xs sm:text-sm py-1.5 sm:py-2"
                                     value={condition.interval_minutes}
                                     onChange={(e) =>
                                       handleUpdateCondition(
@@ -489,12 +556,12 @@ export default function TargetsPage() {
 
                                 {/* Threshold */}
                                 <div>
-                                  <label className="block text-xs font-medium mb-2">
-                                    アラート閾値（%）
+                                  <label className="block text-[10px] sm:text-xs font-medium mb-1 sm:mb-2">
+                                    閾値（%）
                                   </label>
                                   <input
                                     type="number"
-                                    className="input w-full"
+                                    className="input w-full text-xs sm:text-sm py-1.5 sm:py-2"
                                     min="0.1"
                                     max="100"
                                     step="0.1"
@@ -511,11 +578,11 @@ export default function TargetsPage() {
 
                                 {/* Direction */}
                                 <div>
-                                  <label className="block text-xs font-medium mb-2">
-                                    変動方向
+                                  <label className="block text-[10px] sm:text-xs font-medium mb-1 sm:mb-2">
+                                    方向
                                   </label>
                                   <select
-                                    className="input w-full"
+                                    className="input w-full text-xs sm:text-sm py-1.5 sm:py-2"
                                     value={condition.direction || "both"}
                                     onChange={(e) =>
                                       handleUpdateCondition(
@@ -525,9 +592,9 @@ export default function TargetsPage() {
                                       )
                                     }
                                   >
-                                    <option value="both">↕ 両方向</option>
-                                    <option value="increase">↑ 上昇のみ</option>
-                                    <option value="decrease">↓ 下落のみ</option>
+                                    <option value="both">↕</option>
+                                    <option value="increase">↑</option>
+                                    <option value="decrease">↓</option>
                                   </select>
                                 </div>
                               </div>
@@ -537,10 +604,10 @@ export default function TargetsPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveCondition(conditionIndex)}
-                                  className="btn btn-danger"
-                                  title="この条件を削除"
+                                  className="btn btn-danger p-2 sm:p-2.5 self-end sm:self-auto"
+                                  title="削除"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                 </button>
                               )}
                             </div>
@@ -552,9 +619,9 @@ export default function TargetsPage() {
 
                   {/* グループ間の OR表示 */}
                   {groupIndex < getConditionGroups().length - 1 && (
-                    <div className="flex items-center justify-center my-3">
-                      <span className="px-4 py-2 bg-brand-accent/20 text-brand-accent font-bold rounded-lg text-sm">
-                        OR（いずれか）
+                    <div className="flex items-center justify-center my-2 sm:my-3">
+                      <span className="px-3 sm:px-4 py-1.5 sm:py-2 bg-brand-accent/20 text-brand-accent font-bold rounded-lg text-xs sm:text-sm">
+                        OR
                       </span>
                     </div>
                   )}
@@ -562,22 +629,22 @@ export default function TargetsPage() {
               ))}
 
               {/* 条件を追加ボタン */}
-              <div className="flex justify-end gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => handleAddCondition("AND")}
-                  className="px-3 py-1.5 text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1.5"
+                  className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  AND条件を追加
+                  <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  AND追加
                 </button>
                 <button
                   type="button"
                   onClick={() => handleAddCondition("OR")}
-                  className="px-3 py-1.5 text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1.5"
+                  className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  OR条件を追加（新グループ）
+                  <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                  OR追加
                 </button>
               </div>
             </div>
@@ -620,234 +687,82 @@ export default function TargetsPage() {
         </form>
       </div>
 
-      {/* Existing Targets */}
+      {/* Existing Targets - Category View */}
       <div>
-        <h2 className="text-2xl font-bold mb-4">登録済みアラート</h2>
+        <h2 className="text-lg sm:text-2xl font-bold mb-3 sm:mb-4">登録済みアラート</h2>
 
-        {loading ? (
-          <div className="space-y-2">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="card animate-pulse">
-                <div className="h-20"></div>
-              </div>
-            ))}
-          </div>
-        ) : targets.length === 0 ? (
-          <div className="card text-center py-12">
-            <p className="text-foreground-muted">
+        {targetsLoading ? (
+          <Skeleton variant="card" count={5} />
+        ) : displayTargets.length === 0 ? (
+          <div className="card text-center py-8 sm:py-12 px-4">
+            <p className="text-sm sm:text-base text-foreground-muted">
               まだ銘柄がありません。上のフォームから最初の銘柄を追加してください
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {targets.map((target, index) => (
+          <div className="space-y-3">
+            {Object.entries(getTargetsByCategory()).map(([category, categoryTargets]) => (
               <div
-                key={target.id}
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-                onClick={() => handleEdit(target)}
-                className={`card hover:border-brand-accent/50 transition-all cursor-pointer ${
-                  draggedIndex === index ? "opacity-50" : ""
-                }`}
+                key={category}
+                className="border border-foreground/10 rounded-lg overflow-hidden"
               >
-                <div className="flex items-start gap-3 py-1.5 px-4">
-                  {/* Drag Handle */}
-                  <div className="text-foreground-muted hover:text-foreground transition-colors">
-                    <GripVertical className="w-5 h-5" />
-                  </div>
-
-                  {/* Symbol & Name & Price Data */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-0.5">
-                      <span className="text-lg font-bold">{target.symbol}</span>
-                      {target.name && (
-                        <span className="text-sm text-foreground-muted truncate">
-                          {target.name}
-                        </span>
-                      )}
-                    </div>
-                    {/* Price Data */}
-                    {priceData[target.id] && (
-                      <div className="flex items-center gap-3 text-sm">
-                        {priceData[target.id].current_price !== null && (
-                          <div className="font-semibold">
-                            ${priceData[target.id].current_price!.toFixed(2)}
-                          </div>
-                        )}
-                        {priceData[target.id].day_change !== null && (
-                          <div className={`flex items-center gap-1 ${
-                            priceData[target.id].day_change! > 0
-                              ? "text-green-500"
-                              : priceData[target.id].day_change! < 0
-                              ? "text-red-500"
-                              : "text-foreground-muted"
-                          }`}>
-                            <span>前日比:</span>
-                            <span className="font-semibold">
-                              {priceData[target.id].day_change! > 0 ? "+" : ""}
-                              {priceData[target.id].day_change!.toFixed(2)}%
-                            </span>
-                          </div>
-                        )}
-                        {priceData[target.id].month_change !== null && (
-                          <div className={`flex items-center gap-1 ${
-                            priceData[target.id].month_change! > 0
-                              ? "text-green-500"
-                              : priceData[target.id].month_change! < 0
-                              ? "text-red-500"
-                              : "text-foreground-muted"
-                          }`}>
-                            <span>前月比:</span>
-                            <span className="font-semibold">
-                              {priceData[target.id].month_change! > 0 ? "+" : ""}
-                              {priceData[target.id].month_change!.toFixed(2)}%
-                            </span>
-                          </div>
-                        )}
-                        {priceData[target.id].year_change !== null && (
-                          <div className={`flex items-center gap-1 ${
-                            priceData[target.id].year_change! > 0
-                              ? "text-green-500"
-                              : priceData[target.id].year_change! < 0
-                              ? "text-red-500"
-                              : "text-foreground-muted"
-                          }`}>
-                            <span>前年比:</span>
-                            <span className="font-semibold">
-                              {priceData[target.id].year_change! > 0 ? "+" : ""}
-                              {priceData[target.id].year_change!.toFixed(2)}%
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Alert Conditions (Right side) */}
-                  <div className="space-y-1">
-                    {/* Primary condition */}
-                    <div className="flex items-center gap-3 text-sm">
-                      {/* 演算子の列 (空白でスペースを確保) */}
-                      <div className="w-8"></div>
-                      {/* 条件の列 */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1">
-                          <span className="text-foreground-muted">間隔:</span>
-                          <span className="font-semibold">
-                            {target.interval_minutes >= 1440
-                              ? `${Math.floor(target.interval_minutes / 1440)}日`
-                              : target.interval_minutes >= 60
-                              ? `${Math.floor(target.interval_minutes / 60)}時間`
-                              : `${target.interval_minutes}分`}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-foreground-muted">閾値:</span>
-                          <span className="font-semibold text-brand-accent">
-                            {target.threshold_percent}%
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-foreground-muted">方向:</span>
-                          <span className="font-semibold">
-                            {target.direction === "increase"
-                              ? "↑"
-                              : target.direction === "decrease"
-                              ? "↓"
-                              : "↕"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Additional conditions if any */}
-                    {target.conditions && target.conditions.length > 1 && (
-                      <>
-                        {target.conditions.slice(1).map((condition, idx) => (
-                          <div key={idx} className="flex items-center gap-3 text-sm">
-                            {/* 演算子の列 (固定幅・中央寄せ) */}
-                            <div className="w-8 text-center">
-                              {condition.operator && (
-                                <span className={`text-xs font-bold ${
-                                  condition.operator === "OR"
-                                    ? "text-brand-accent"
-                                    : "text-green-500"
-                                }`}>
-                                  {condition.operator}
-                                </span>
-                              )}
-                            </div>
-                            {/* 条件の列 */}
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1">
-                                <span className="text-foreground-muted">間隔:</span>
-                                <span className="font-semibold">
-                                  {condition.interval_minutes >= 1440
-                                  ? `${Math.floor(condition.interval_minutes / 1440)}日`
-                                  : condition.interval_minutes >= 60
-                                  ? `${Math.floor(condition.interval_minutes / 60)}時間`
-                                  : `${condition.interval_minutes}分`}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-foreground-muted">閾値:</span>
-                                <span className="font-semibold text-brand-accent">
-                                  {condition.threshold_percent}%
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <span className="text-foreground-muted">方向:</span>
-                                <span className="font-semibold">
-                                  {condition.direction === "increase"
-                                    ? "↑"
-                                    : condition.direction === "decrease"
-                                    ? "↓"
-                                    : "↕"}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                  </div>
-
-                  {/* Active Toggle and Delete - Horizontal */}
+                {/* Category Header - Droppable Area */}
+                <button
+                  onClick={() => toggleCategory(category)}
+                  onDragOver={handleCategoryDragOver}
+                  onDrop={(e) => handleCategoryDrop(e, category)}
+                  className={`w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-background-secondary hover:bg-background-tertiary transition-colors ${
+                    draggedTarget && draggedTarget.category !== (category === "未分類" ? null : category)
+                      ? "ring-2 ring-brand-accent ring-inset"
+                      : ""
+                  }`}
+                >
                   <div className="flex items-center gap-2">
-                    {/* Active Toggle */}
-                    <label
-                      className="relative inline-flex items-center cursor-pointer"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={target.is_active}
-                        onChange={(e) =>
-                          handleToggleActive(target.id, e.target.checked)
-                        }
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-background-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-accent"></div>
-                      <span className="ml-2 text-xs text-foreground-muted whitespace-nowrap">
-                        {target.is_active ? "ON" : "OFF"}
-                      </span>
-                    </label>
-
-                    {/* Delete Button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(target.id);
-                      }}
-                      className="h-6 w-6 flex items-center justify-center rounded bg-red-500/20 hover:bg-red-500/30 text-red-500 transition-colors"
-                      title="削除"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {collapsedCategories.has(category) ? (
+                      <ChevronRight className="w-4 h-4 text-foreground-muted" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4 text-foreground-muted" />
+                    )}
+                    <span className="text-sm font-semibold">{category}</span>
+                    <span className="text-xs text-foreground-muted bg-background-tertiary px-2 py-0.5 rounded-full">
+                      {categoryTargets.length}
+                    </span>
                   </div>
-                </div>
+                  {draggedTarget && (
+                    <span className="text-xs text-brand-accent">
+                      ここにドロップ
+                    </span>
+                  )}
+                </button>
+
+                {/* Category Items */}
+                {!collapsedCategories.has(category) && (
+                  <div className="divide-y divide-foreground/5">
+                    {categoryTargets.map((target) => {
+                      const globalIndex = displayTargets.findIndex((t) => t.id === target.id);
+                      return (
+                        <TargetListItem
+                          key={target.id}
+                          target={target}
+                          index={globalIndex}
+                          priceData={priceData[target.id] || null}
+                          isDragging={draggedIndex === globalIndex}
+                          showDragHandle={true}
+                          showToggle={true}
+                          showDelete={true}
+                          showConditions={true}
+                          showYahooLink={false}
+                          onDragStart={handleDragStart}
+                          onDragOver={handleDragOver}
+                          onDragEnd={handleDragEnd}
+                          onToggleActive={handleToggleActive}
+                          onDelete={handleDelete}
+                          onClick={handleEdit}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -856,28 +771,75 @@ export default function TargetsPage() {
 
       {/* Edit Modal */}
       {editingTarget && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-background-primary rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-border">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-background-primary rounded-t-xl sm:rounded-xl shadow-2xl w-full sm:max-w-3xl max-h-[85vh] sm:max-h-[90vh] overflow-y-auto border border-border">
             {/* Modal Header */}
-            <div className="sticky top-0 bg-background-primary border-b border-border px-6 py-4 flex items-center justify-between">
-              <h2 className="text-2xl font-bold">アラート編集: {editingTarget.symbol}</h2>
+            <div className="sticky top-0 bg-background-primary border-b border-border px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between">
+              <h2 className="text-lg sm:text-2xl font-bold">編集: {editingTarget.symbol}</h2>
               <button
                 onClick={handleCloseEdit}
-                className="text-foreground-muted hover:text-foreground transition-colors"
+                className="text-foreground-muted hover:text-foreground transition-colors p-1"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-6">
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+
+              {/* Name and Category */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                {/* Name */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">
+                    名前（任意）
+                  </label>
+                  <input
+                    type="text"
+                    className="input w-full text-sm sm:text-base"
+                    placeholder="例: Apple Inc."
+                    value={editingTarget.name || ""}
+                    onChange={(e) =>
+                      setEditingTarget({ ...editingTarget, name: e.target.value || null })
+                    }
+                  />
+                  <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+                    銘柄の表示名
+                  </p>
+                </div>
+
+                {/* Category */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium mb-1.5 sm:mb-2">
+                    カテゴリー（任意）
+                  </label>
+                  <input
+                    type="text"
+                    className="input w-full text-sm sm:text-base"
+                    placeholder="例: 地政学・エネルギー"
+                    list="edit-category-list"
+                    value={editingTarget.category || ""}
+                    onChange={(e) =>
+                      setEditingTarget({ ...editingTarget, category: e.target.value || null })
+                    }
+                  />
+                  <datalist id="edit-category-list">
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                  <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+                    銘柄をグループ化するカテゴリー
+                  </p>
+                </div>
+              </div>
 
               {/* Conditions */}
               <div>
-                <label className="block text-sm font-medium mb-3">
+                <label className="block text-xs sm:text-sm font-medium mb-2 sm:mb-3">
                   監視条件
                 </label>
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {editConditions.map((condition, conditionIndex) => (
                     <div key={conditionIndex}>
                       {/* Operator Display */}
@@ -885,30 +847,28 @@ export default function TargetsPage() {
                         <div className="mb-2 flex items-center gap-2">
                           <div className="h-px flex-1 bg-border"></div>
                           <span
-                            className={`px-4 py-2 ${
+                            className={`px-3 sm:px-4 py-1.5 sm:py-2 ${
                               condition.operator === "OR"
                                 ? "bg-brand-accent/20 text-brand-accent"
                                 : "bg-background-tertiary text-foreground-muted"
-                            } font-bold rounded-lg text-sm`}
+                            } font-bold rounded-lg text-xs sm:text-sm`}
                           >
-                            {condition.operator === "OR"
-                              ? "OR（いずれか）"
-                              : "AND（かつ）"}
+                            {condition.operator === "OR" ? "OR" : "AND"}
                           </span>
                           <div className="h-px flex-1 bg-border"></div>
                         </div>
                       )}
 
                       {/* Condition Settings */}
-                      <div className="bg-background-secondary rounded-lg p-4 flex items-center gap-4">
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-background-secondary rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                        <div className="flex-1 w-full grid grid-cols-3 gap-2 sm:gap-4">
                           {/* Interval */}
                           <div>
-                            <label className="block text-xs font-medium mb-2">
-                              チェック間隔
+                            <label className="block text-[10px] sm:text-xs font-medium mb-1 sm:mb-2">
+                              間隔
                             </label>
                             <select
-                              className="input w-full"
+                              className="input w-full text-xs sm:text-sm py-1.5 sm:py-2"
                               value={condition.interval_minutes}
                               onChange={(e) =>
                                 handleUpdateEditCondition(
@@ -928,14 +888,14 @@ export default function TargetsPage() {
 
                           {/* Threshold */}
                           <div>
-                            <label className="block text-xs font-medium mb-2">
-                              アラート閾値 (%)
+                            <label className="block text-[10px] sm:text-xs font-medium mb-1 sm:mb-2">
+                              閾値（%）
                             </label>
                             <input
                               type="number"
                               step="0.1"
                               min="0"
-                              className="input w-full"
+                              className="input w-full text-xs sm:text-sm py-1.5 sm:py-2"
                               value={condition.threshold_percent}
                               onChange={(e) =>
                                 handleUpdateEditCondition(
@@ -949,11 +909,11 @@ export default function TargetsPage() {
 
                           {/* Direction */}
                           <div>
-                            <label className="block text-xs font-medium mb-2">
-                              変動方向
+                            <label className="block text-[10px] sm:text-xs font-medium mb-1 sm:mb-2">
+                              方向
                             </label>
                             <select
-                              className="input w-full"
+                              className="input w-full text-xs sm:text-sm py-1.5 sm:py-2"
                               value={condition.direction || "both"}
                               onChange={(e) =>
                                 handleUpdateEditCondition(
@@ -963,9 +923,9 @@ export default function TargetsPage() {
                                 )
                               }
                             >
-                              <option value="both">↕ 両方向</option>
-                              <option value="increase">↑ 上昇のみ</option>
-                              <option value="decrease">↓ 下落のみ</option>
+                              <option value="both">↕</option>
+                              <option value="increase">↑</option>
+                              <option value="decrease">↓</option>
                             </select>
                           </div>
                         </div>
@@ -975,10 +935,10 @@ export default function TargetsPage() {
                           <button
                             type="button"
                             onClick={() => handleRemoveEditCondition(conditionIndex)}
-                            className="btn btn-danger"
-                            title="この条件を削除"
+                            className="btn btn-danger p-2 sm:p-2.5 self-end sm:self-auto"
+                            title="削除"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                           </button>
                         )}
                       </div>
@@ -986,22 +946,22 @@ export default function TargetsPage() {
                   ))}
 
                   {/* Add Condition Buttons */}
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-wrap justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => handleAddEditCondition("AND")}
-                      className="px-3 py-1.5 text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1.5"
+                      className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      AND条件を追加
+                      <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      AND追加
                     </button>
                     <button
                       type="button"
                       onClick={() => handleAddEditCondition("OR")}
-                      className="px-3 py-1.5 text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1.5"
+                      className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      OR条件を追加（新グループ）
+                      <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      OR追加
                     </button>
                   </div>
                 </div>
@@ -1009,27 +969,27 @@ export default function TargetsPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="sticky bottom-0 bg-background-primary border-t border-border px-6 py-4 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 bg-background-primary border-t border-border px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-end gap-2 sm:gap-3">
               <button
                 onClick={handleCloseEdit}
-                className="btn btn-secondary"
+                className="btn btn-secondary text-sm px-3 sm:px-4 py-1.5 sm:py-2"
               >
                 キャンセル
               </button>
               <button
                 onClick={handleSaveEdit}
                 disabled={saving}
-                className="btn btn-primary flex items-center gap-2"
+                className="btn btn-primary flex items-center gap-1.5 sm:gap-2 text-sm px-3 sm:px-4 py-1.5 sm:py-2"
               >
                 {saving ? (
                   <>
-                    <div className="spinner"></div>
-                    保存中...
+                    <div className="spinner w-3.5 h-3.5 sm:w-4 sm:h-4"></div>
+                    <span className="hidden sm:inline">保存中...</span>
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="w-4 h-4" />
-                    変更を保存
+                    <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>保存</span>
                   </>
                 )}
               </button>

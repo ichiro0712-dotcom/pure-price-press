@@ -34,12 +34,12 @@ def get_monitor_targets(
     limit: int = 100,
     active_only: bool = False
 ) -> List[models.MonitorTarget]:
-    """Get all monitor targets."""
+    """Get all monitor targets sorted by display_order."""
     try:
         query = db.query(models.MonitorTarget)
         if active_only:
             query = query.filter(models.MonitorTarget.is_active == True)
-        return query.offset(skip).limit(limit).all()
+        return query.order_by(models.MonitorTarget.display_order, models.MonitorTarget.id).offset(skip).limit(limit).all()
     except Exception as e:
         print(f"Error getting monitor targets: {e}")
         return []
@@ -329,3 +329,149 @@ def delete_config(db: Session, key: str) -> bool:
         db.rollback()
         print(f"Error deleting config: {e}")
         raise e
+
+
+def reorder_monitor_targets(
+    db: Session,
+    target_ids: List[int]
+) -> bool:
+    """Reorder monitor targets by updating their display_order."""
+    try:
+        for order, target_id in enumerate(target_ids):
+            db_target = get_monitor_target(db, target_id)
+            if db_target:
+                db_target.display_order = order
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"Error reordering monitor targets: {e}")
+        raise e
+
+
+def get_categories(db: Session) -> List[str]:
+    """Get all unique categories from monitor targets."""
+    try:
+        result = db.query(models.MonitorTarget.category).filter(
+            models.MonitorTarget.category.isnot(None),
+            models.MonitorTarget.category != ''
+        ).distinct().all()
+        return [r[0] for r in result if r[0]]
+    except Exception as e:
+        print(f"Error getting categories: {e}")
+        return []
+
+
+def get_monitor_targets_by_category(
+    db: Session,
+    category: str,
+    active_only: bool = False
+) -> List[models.MonitorTarget]:
+    """Get all monitor targets in a specific category."""
+    try:
+        query = db.query(models.MonitorTarget).filter(models.MonitorTarget.category == category)
+        if active_only:
+            query = query.filter(models.MonitorTarget.is_active == True)
+        return query.order_by(models.MonitorTarget.display_order, models.MonitorTarget.id).all()
+    except Exception as e:
+        print(f"Error getting monitor targets by category: {e}")
+        return []
+
+
+# PushSubscription CRUD
+def get_push_subscription_by_endpoint(db: Session, endpoint: str) -> Optional[models.PushSubscription]:
+    """Get a push subscription by endpoint."""
+    try:
+        return db.query(models.PushSubscription).filter(models.PushSubscription.endpoint == endpoint).first()
+    except Exception as e:
+        print(f"Error getting push subscription: {e}")
+        return None
+
+
+def get_all_push_subscriptions(db: Session) -> List[models.PushSubscription]:
+    """Get all push subscriptions."""
+    try:
+        return db.query(models.PushSubscription).all()
+    except Exception as e:
+        print(f"Error getting all push subscriptions: {e}")
+        return []
+
+
+def create_push_subscription(
+    db: Session,
+    endpoint: str,
+    p256dh: str,
+    auth: str
+) -> models.PushSubscription:
+    """Create a new push subscription or update existing one."""
+    try:
+        existing = get_push_subscription_by_endpoint(db, endpoint)
+        if existing:
+            existing.p256dh = p256dh
+            existing.auth = auth
+            db.commit()
+            db.refresh(existing)
+            return existing
+
+        db_subscription = models.PushSubscription(
+            endpoint=endpoint,
+            p256dh=p256dh,
+            auth=auth
+        )
+        db.add(db_subscription)
+        db.commit()
+        db.refresh(db_subscription)
+        return db_subscription
+    except Exception as e:
+        db.rollback()
+        print(f"Error creating push subscription: {e}")
+        raise e
+
+
+def delete_push_subscription(db: Session, endpoint: str) -> bool:
+    """Delete a push subscription by endpoint."""
+    try:
+        subscription = get_push_subscription_by_endpoint(db, endpoint)
+        if not subscription:
+            return False
+
+        db.delete(subscription)
+        db.commit()
+        return True
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting push subscription: {e}")
+        raise e
+
+
+def update_push_subscription_last_used(db: Session, endpoint: str) -> Optional[models.PushSubscription]:
+    """Update the last_used_at timestamp for a push subscription."""
+    try:
+        subscription = get_push_subscription_by_endpoint(db, endpoint)
+        if not subscription:
+            return None
+
+        subscription.last_used_at = datetime.utcnow()
+        db.commit()
+        db.refresh(subscription)
+        return subscription
+    except Exception as e:
+        db.rollback()
+        print(f"Error updating push subscription last used: {e}")
+        raise e
+
+
+# Alert check-new helper
+def get_alerts_since(
+    db: Session,
+    since: datetime,
+    limit: int = 100
+) -> List[models.AlertHistory]:
+    """Get alerts triggered since a specific timestamp."""
+    try:
+        return db.query(models.AlertHistory).filter(
+            models.AlertHistory.triggered_at > since
+        ).order_by(desc(models.AlertHistory.triggered_at)).limit(limit).all()
+    except Exception as e:
+        print(f"Error getting alerts since: {e}")
+        return []
