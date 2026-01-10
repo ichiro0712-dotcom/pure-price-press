@@ -79,6 +79,82 @@ def get_current_price(symbol: str) -> Optional[Dict[str, Any]]:
         return None
 
 
+def get_historical_prices(symbol: str) -> Optional[Dict[str, Any]]:
+    """
+    Get historical price data for a symbol using Yahoo Finance API directly.
+    Returns current price and day/month/year change percentages.
+
+    Args:
+        symbol: Stock ticker symbol
+
+    Returns:
+        Dictionary with price data and changes or None if failed
+    """
+    try:
+        # Use Yahoo Finance v8 API with 1 year range
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+        params = {
+            "interval": "1d",
+            "range": "1y"
+        }
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        result = data.get("chart", {}).get("result", [])
+        if not result:
+            print(f"⚠ No historical data available for {symbol}")
+            return None
+
+        quote = result[0]
+        indicators = quote.get("indicators", {}).get("quote", [{}])[0]
+
+        # Get close prices
+        closes = indicators.get("close", [])
+        valid_closes = [c for c in closes if c is not None]
+
+        if len(valid_closes) < 2:
+            print(f"⚠ Not enough historical data for {symbol}")
+            return None
+
+        current_price = valid_closes[-1]
+
+        # Calculate changes
+        day_change = None
+        month_change = None
+        year_change = None
+
+        # Day change (1 trading day ago)
+        if len(valid_closes) >= 2:
+            price_1d = valid_closes[-2]
+            day_change = ((current_price - price_1d) / price_1d) * 100
+
+        # Month change (approximately 21 trading days)
+        if len(valid_closes) >= 22:
+            price_1m = valid_closes[-22]
+            month_change = ((current_price - price_1m) / price_1m) * 100
+
+        # Year change (first available price in 1y range)
+        if len(valid_closes) >= 2:
+            price_1y = valid_closes[0]
+            year_change = ((current_price - price_1y) / price_1y) * 100
+
+        return {
+            "current_price": float(current_price),
+            "day_change": round(day_change, 2) if day_change else None,
+            "month_change": round(month_change, 2) if month_change else None,
+            "year_change": round(year_change, 2) if year_change else None
+        }
+
+    except Exception as e:
+        print(f"✗ Error fetching historical prices for {symbol}: {e}")
+        return None
+
+
 def get_price_change(
     symbol: str,
     current_price: float,

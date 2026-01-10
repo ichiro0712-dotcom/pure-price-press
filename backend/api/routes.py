@@ -289,8 +289,7 @@ async def get_target_price(
     Get current price and comparison data for a target.
     Returns current price, day/month/year change percentages.
     """
-    from monitor import StockMonitor
-    import yfinance as yf
+    from monitor import get_historical_prices
     from datetime import datetime, timedelta
 
     # Get target
@@ -299,12 +298,10 @@ async def get_target_price(
         raise HTTPException(status_code=404, detail="Target not found")
 
     try:
-        ticker = yf.Ticker(target.symbol)
+        # Get historical data using direct Yahoo Finance API
+        price_data = get_historical_prices(target.symbol)
 
-        # Get historical data for comparisons (use daily data which is more reliable)
-        hist_1y = ticker.history(period="1y", interval="1d")
-
-        if hist_1y.empty or len(hist_1y) < 2:
+        if not price_data or "current_price" not in price_data:
             return {
                 "symbol": target.symbol,
                 "current_price": None,
@@ -314,35 +311,12 @@ async def get_target_price(
                 "error": "No data available"
             }
 
-        # Get current price (most recent close)
-        current_price = float(hist_1y['Close'].iloc[-1])
-
-        # Calculate changes
-        day_change = None
-        month_change = None
-        year_change = None
-
-        # Day change (1 trading day ago)
-        if len(hist_1y) >= 2:
-            price_1d = float(hist_1y['Close'].iloc[-2])
-            day_change = ((current_price - price_1d) / price_1d) * 100
-
-        # Month change (approximately 21 trading days)
-        if len(hist_1y) >= 22:
-            price_1m = float(hist_1y['Close'].iloc[-22])
-            month_change = ((current_price - price_1m) / price_1m) * 100
-
-        # Year change (approximately 252 trading days or earliest available)
-        if len(hist_1y) >= 2:
-            price_1y = float(hist_1y['Close'].iloc[0])
-            year_change = ((current_price - price_1y) / price_1y) * 100
-
         return {
             "symbol": target.symbol,
-            "current_price": current_price,
-            "day_change": day_change,
-            "month_change": month_change,
-            "year_change": year_change
+            "current_price": price_data.get("current_price"),
+            "day_change": price_data.get("day_change"),
+            "month_change": price_data.get("month_change"),
+            "year_change": price_data.get("year_change")
         }
 
     except Exception as e:
@@ -743,10 +717,9 @@ async def get_system_status(db: Session = Depends(get_db)):
     }
 
     try:
-        import yfinance as yf
-        ticker = yf.Ticker("AAPL")
-        hist = ticker.history(period="1d")
-        if not hist.empty:
+        from monitor import get_current_price
+        price_data = get_current_price("AAPL")
+        if price_data and price_data.get("current_price"):
             yfinance_status["status"] = "connected"
         else:
             yfinance_status["status"] = "error"
@@ -757,32 +730,8 @@ async def get_system_status(db: Session = Depends(get_db)):
 
     status["systems"].append(yfinance_status)
 
-    # Check OpenAI API (optional)
-    openai_key_config = crud.get_config(db, "openai_api_key")
-    openai_key = openai_key_config.value if openai_key_config else os.getenv("OPENAI_API_KEY", "")
-    openai_status = {
-        "name": "OpenAI API",
-        "description": "AI分析に使用（オプション）",
-        "configured": bool(openai_key),
-        "status": "unknown",
-        "api_key_preview": f"sk-...{openai_key[-4:]}" if len(openai_key) > 8 else "未設定",
-        "env_var": "OPENAI_API_KEY"
-    }
-
-    if openai_key:
-        try:
-            from openai import OpenAI
-            client = OpenAI(api_key=openai_key)
-            # Just check if we can list models (lightweight check)
-            models = client.models.list()
-            openai_status["status"] = "connected"
-        except Exception as e:
-            openai_status["status"] = "error"
-            openai_status["error"] = str(e)[:100]
-    else:
-        openai_status["status"] = "not_configured"
-
-    status["systems"].append(openai_status)
+    # Note: OpenAI API check removed - using Gemini instead
+    # Gemini is already checked above
 
     # Check Discord Webhook
     discord_config = crud.get_config(db, "discord_webhook_url")
@@ -865,18 +814,6 @@ async def get_api_keys(db: Session = Depends(get_db)):
             "masked_value": mask_key(finnhub_key),
             "is_set": True,
             "source": "environment"
-        })
-
-    # OpenAI
-    openai_config = crud.get_config(db, "openai_api_key")
-    openai_key = openai_config.value if openai_config else os.getenv("OPENAI_API_KEY", "")
-    if openai_key:
-        keys.append({
-            "name": "OPENAI_API_KEY",
-            "display_name": "OpenAI API Key",
-            "masked_value": mask_key(openai_key),
-            "is_set": True,
-            "source": "database" if openai_config else "environment"
         })
 
     # Discord Webhook
