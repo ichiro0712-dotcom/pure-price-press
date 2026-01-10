@@ -15,6 +15,7 @@ from api.routes import router as api_router
 async def lifespan(app: FastAPI):
     """
     Lifespan context manager for startup and shutdown events.
+    Optimized for Vercel Serverless - no background monitors.
     """
     # Startup
     print("=" * 60)
@@ -24,38 +25,19 @@ async def lifespan(app: FastAPI):
     # Initialize database
     init_db()
 
-    # Import and start monitor (will be implemented in next step)
-    try:
-        from monitor import start_monitor
-        start_monitor()
-        print("✓ Stock monitor started")
-    except ImportError:
-        print("⚠ Monitor module not yet implemented")
-    except Exception as e:
-        print(f"⚠ Monitor startup warning: {e}")
+    # Note: Background monitoring is handled by GitHub Actions, not here
+    # This is a serverless deployment, so no persistent background tasks
+    print("✓ Database initialized")
+    print("  (Price monitoring via GitHub Actions)")
 
     print("=" * 60)
     print("✓ Pure Price Press is ready")
-    print("  - API Docs: http://localhost:8000/docs")
-    print("  - Health Check: http://localhost:8000/api/health")
     print("=" * 60)
 
     yield
 
     # Shutdown
     print("\nPure Price Press - Shutting down...")
-
-    # Stop monitor
-    try:
-        from monitor import stop_monitor
-        stop_monitor()
-        print("✓ Stock monitor stopped")
-    except ImportError:
-        pass
-    except Exception as e:
-        print(f"⚠ Monitor shutdown warning: {e}")
-
-    # Close database
     close_db()
     print("✓ Pure Price Press shutdown complete")
 
