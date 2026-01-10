@@ -74,7 +74,7 @@ export default function AlertDetailPage() {
       <div className="max-w-6xl mx-auto">
         <div className="card text-center py-12">
           <h2 className="text-2xl font-bold mb-2">Alert Not Found</h2>
-          <p className="text-foreground-muted mb-6">
+          <p className="text-gray-400 mb-6">
             The requested alert could not be found.
           </p>
           <button onClick={() => router.push("/")} className="btn btn-primary">
@@ -93,7 +93,7 @@ export default function AlertDetailPage() {
       {/* Back Button */}
       <button
         onClick={() => router.back()}
-        className="flex items-center gap-2 text-foreground-muted hover:text-foreground transition-colors"
+        className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
         Back
@@ -126,7 +126,7 @@ export default function AlertDetailPage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold">{alert.symbol}</h1>
-              <p className="text-foreground-muted flex items-center gap-2 mt-1">
+              <p className="text-gray-400 flex items-center gap-2 mt-1">
                 <Clock className="w-4 h-4" />
                 {formatAbsoluteTime(alert.triggered_at)}
               </p>
@@ -150,8 +150,8 @@ export default function AlertDetailPage() {
         {/* Metrics Grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {/* Change Rate */}
-          <div className="bg-background-tertiary rounded-lg p-4">
-            <p className="text-sm text-foreground-muted mb-2 flex items-center gap-1">
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-sm text-gray-400 mb-2 flex items-center gap-1">
               <Activity className="w-4 h-4" />
               Change Rate
             </p>
@@ -166,8 +166,8 @@ export default function AlertDetailPage() {
           </div>
 
           {/* Change Amount */}
-          <div className="bg-background-tertiary rounded-lg p-4">
-            <p className="text-sm text-foreground-muted mb-2 flex items-center gap-1">
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-sm text-gray-400 mb-2 flex items-center gap-1">
               <DollarSign className="w-4 h-4" />
               Change Amount
             </p>
@@ -182,16 +182,16 @@ export default function AlertDetailPage() {
           </div>
 
           {/* Price Before */}
-          <div className="bg-background-tertiary rounded-lg p-4">
-            <p className="text-sm text-foreground-muted mb-2">Price Before</p>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-sm text-gray-400 mb-2">Price Before</p>
             <p className="text-2xl font-mono font-bold">
               {formatCurrency(alert.price_before)}
             </p>
           </div>
 
           {/* Price After */}
-          <div className="bg-background-tertiary rounded-lg p-4">
-            <p className="text-sm text-foreground-muted mb-2">Price After</p>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-sm text-gray-400 mb-2">Price After</p>
             <p className="text-2xl font-mono font-bold">
               {formatCurrency(alert.price_after)}
             </p>
@@ -203,8 +203,8 @@ export default function AlertDetailPage() {
           <div className="grid grid-cols-2 gap-4 mt-4">
             {alert.volume && (
               <div className="flex items-center gap-2 text-sm">
-                <BarChart3 className="w-4 h-4 text-foreground-muted" />
-                <span className="text-foreground-muted">Volume:</span>
+                <BarChart3 className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-400">Volume:</span>
                 <span className="font-medium">
                   {formatLargeNumber(alert.volume)}
                 </span>
@@ -212,8 +212,8 @@ export default function AlertDetailPage() {
             )}
             {alert.market_cap && (
               <div className="flex items-center gap-2 text-sm">
-                <DollarSign className="w-4 h-4 text-foreground-muted" />
-                <span className="text-foreground-muted">Market Cap:</span>
+                <DollarSign className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-400">Market Cap:</span>
                 <span className="font-medium">
                   ${formatLargeNumber(alert.market_cap)}
                 </span>
@@ -244,12 +244,12 @@ export default function AlertDetailPage() {
                 Pure Price Press Analysis
               </h2>
               <div className="prose prose-invert max-w-none">
-                <p className="text-lg leading-relaxed text-foreground-secondary whitespace-pre-line">
+                <p className="text-lg leading-relaxed text-gray-300 whitespace-pre-line">
                   {alert.ai_analysis_text}
                 </p>
               </div>
-              <div className="mt-6 pt-6 border-t border-foreground/10">
-                <p className="text-sm text-foreground-muted italic">
+              <div className="mt-6 pt-6 border-t border-white/10">
+                <p className="text-sm text-gray-400 italic">
                   "価格こそが真実。ニュースは見せかけに過ぎない。"
                   <br />
                   - Pure Price Press Philosophy
@@ -273,7 +273,7 @@ export default function AlertDetailPage() {
                 <p className="font-medium text-green-500">
                   Notification Sent Successfully
                 </p>
-                <p className="text-sm text-foreground-muted">
+                <p className="text-sm text-gray-400">
                   Alert was sent to configured channels
                 </p>
               </div>
@@ -288,7 +288,7 @@ export default function AlertDetailPage() {
                   Notification Pending or Failed
                 </p>
                 {alert.notification_error && (
-                  <p className="text-sm text-foreground-muted">
+                  <p className="text-sm text-gray-400">
                     Error: {alert.notification_error}
                   </p>
                 )}

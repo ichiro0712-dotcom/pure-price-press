@@ -3,10 +3,11 @@ import { alertsApi } from "@/lib/api";
 import { queryKeys } from "@/lib/queryClient";
 
 // アラート一覧取得
-export function useAlerts(limit = 50) {
+export function useAlerts(params?: { limit?: number; symbol?: string; days?: number }) {
+  const { limit = 50, symbol, days } = params ?? {};
   return useQuery({
-    queryKey: queryKeys.alerts,
-    queryFn: () => alertsApi.getAll({ limit }),
+    queryKey: queryKeys.alerts({ limit, symbol, days }),
+    queryFn: () => alertsApi.getAll({ limit, symbol, days }),
     staleTime: 1 * 60 * 1000, // 1分
     gcTime: 10 * 60 * 1000, // 10分
   });
@@ -38,7 +39,7 @@ export function useDeleteAlert() {
   return useMutation({
     mutationFn: (id: number) => alertsApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.alerts });
+      queryClient.invalidateQueries({ queryKey: queryKeys.alertsBase });
       queryClient.invalidateQueries({ queryKey: queryKeys.stats });
     },
   });

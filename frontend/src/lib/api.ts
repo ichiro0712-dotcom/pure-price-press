@@ -12,6 +12,10 @@ import type {
   DashboardStats,
   MessageResponse,
   TargetPriceData,
+  NewsListResponse,
+  CuratedNews,
+  DailyDigest,
+  NewsBatchRunResponse,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -295,6 +299,105 @@ export const pushApi = {
    */
   getVapidPublicKey: async (): Promise<{ publicKey: string }> => {
     return fetchApi<{ publicKey: string }>("/api/push/vapid-public-key");
+  },
+};
+
+// News API
+export const newsApi = {
+  /**
+   * Get curated news
+   */
+  getNews: async (params?: {
+    limit?: number;
+    offset?: number;
+    min_score?: number;
+  }): Promise<NewsListResponse> => {
+    const queryParams = new URLSearchParams();
+    if (params?.limit !== undefined)
+      queryParams.append("limit", params.limit.toString());
+    if (params?.offset !== undefined)
+      queryParams.append("offset", params.offset.toString());
+    if (params?.min_score !== undefined)
+      queryParams.append("min_score", params.min_score.toString());
+
+    const query = queryParams.toString();
+    return fetchApi<NewsListResponse>(`/api/news${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Get a specific news item
+   */
+  getById: async (id: number): Promise<CuratedNews> => {
+    return fetchApi<CuratedNews>(`/api/news/${id}`);
+  },
+
+  /**
+   * Get latest digest
+   */
+  getLatestDigest: async (): Promise<DailyDigest> => {
+    return fetchApi<DailyDigest>("/api/news/digest/latest");
+  },
+
+  /**
+   * Get digest history
+   */
+  getDigestHistory: async (limit?: number): Promise<DailyDigest[]> => {
+    const query = limit ? `?limit=${limit}` : "";
+    return fetchApi<DailyDigest[]>(`/api/news/digest/history${query}`);
+  },
+
+  /**
+   * Run news batch manually
+   */
+  runBatch: async (hoursBack?: number): Promise<NewsBatchRunResponse> => {
+    return fetchApi<NewsBatchRunResponse>("/api/news/batch/run", {
+      method: "POST",
+      body: JSON.stringify({ hours_back: hoursBack || 24 }),
+    });
+  },
+};
+
+// System Status API
+export interface SystemStatus {
+  name: string;
+  description: string;
+  configured: boolean;
+  status: "connected" | "error" | "not_configured" | "rate_limited" | "configured" | "unknown";
+  api_key_preview: string;
+  env_var: string | null;
+  error?: string;
+}
+
+export interface SystemStatusResponse {
+  systems: SystemStatus[];
+  overall_status: "healthy" | "degraded" | "minimal";
+}
+
+export interface ApiKeyInfo {
+  name: string;
+  display_name: string;
+  masked_value: string;
+  is_set: boolean;
+  source: "environment" | "database";
+}
+
+export interface ApiKeysResponse {
+  keys: ApiKeyInfo[];
+}
+
+export const systemApi = {
+  /**
+   * Get status of all external systems
+   */
+  getStatus: async (): Promise<SystemStatusResponse> => {
+    return fetchApi<SystemStatusResponse>("/api/system/status");
+  },
+
+  /**
+   * Get API keys for copying
+   */
+  getApiKeys: async (): Promise<ApiKeysResponse> => {
+    return fetchApi<ApiKeysResponse>("/api/system/api-keys");
   },
 };
 

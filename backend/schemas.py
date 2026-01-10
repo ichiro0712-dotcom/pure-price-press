@@ -80,7 +80,7 @@ class MonitorTargetInDB(BaseModel):
                 if isinstance(obj.conditions_json, str):
                     try:
                         conditions_data = json_module.loads(obj.conditions_json)
-                    except:
+                    except (json_module.JSONDecodeError, ValueError):
                         conditions_data = None
                 else:
                     conditions_data = obj.conditions_json
@@ -269,3 +269,81 @@ class PushUnsubscribe(BaseModel):
 class VapidPublicKey(BaseModel):
     """VAPID public key response."""
     publicKey: str
+
+
+# ==============================================================================
+# News Feature Schemas
+# ==============================================================================
+
+class SymbolImpact(BaseModel):
+    """Schema for per-symbol impact analysis."""
+    direction: Optional[str] = None  # positive, negative, mixed, uncertain
+    analysis: Optional[str] = None  # AI analysis of impact on this symbol
+
+
+class CuratedNewsResponse(BaseModel):
+    """Schema for curated news item response."""
+    id: int
+    title: str
+    url: str
+    source: str
+    region: str
+    category: Optional[str] = None
+    published_at: Optional[datetime] = None  # Original article publication time
+    source_count: int = 1  # Number of sources reporting this news
+    related_sources: Optional[List[str]] = None  # Other sources reporting same news
+    importance_score: float
+    relevance_reason: str
+    ai_summary: Optional[str] = None  # AI-generated article summary
+    affected_symbols: Optional[List[str]] = None
+    symbol_impacts: Optional[dict] = None  # Per-symbol impact analysis {"AAPL": {"direction": "positive", "analysis": "..."}}
+    predicted_impact: Optional[str] = None
+    impact_direction: Optional[str] = None
+    supply_chain_impact: Optional[str] = None
+    competitor_impact: Optional[str] = None
+    verification_passed: bool = True
+    digest_date: datetime
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DailyDigestResponse(BaseModel):
+    """Schema for daily digest response."""
+    id: int
+    digest_date: datetime
+    total_raw_news: int
+    total_merged_news: int
+    total_curated_news: int
+    processing_time_seconds: Optional[float] = None
+    regional_distribution: Optional[dict] = None
+    category_distribution: Optional[dict] = None
+    status: str
+    error_message: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class NewsListResponse(BaseModel):
+    """Schema for news list response."""
+    news: List[CuratedNewsResponse]
+    digest: Optional[DailyDigestResponse] = None
+    total_count: int
+
+
+class NewsBatchRunRequest(BaseModel):
+    """Schema for triggering a news batch run."""
+    hours_back: int = Field(24, ge=1, le=72, description="Hours to look back for news")
+
+
+class NewsBatchRunResponse(BaseModel):
+    """Schema for news batch run response."""
+    batch_id: str
+    status: str
+    message: str
+    processing_time_seconds: Optional[float] = None
+    total_collected: Optional[int] = None
+    total_curated: Optional[int] = None

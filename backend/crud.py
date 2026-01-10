@@ -337,10 +337,19 @@ def reorder_monitor_targets(
 ) -> bool:
     """Reorder monitor targets by updating their display_order."""
     try:
+        # Fetch all targets in one query to avoid N+1
+        targets = db.query(models.MonitorTarget).filter(
+            models.MonitorTarget.id.in_(target_ids)
+        ).all()
+
+        # Create a lookup dictionary
+        targets_dict = {t.id: t for t in targets}
+
+        # Update display_order for each target
         for order, target_id in enumerate(target_ids):
-            db_target = get_monitor_target(db, target_id)
-            if db_target:
-                db_target.display_order = order
+            if target_id in targets_dict:
+                targets_dict[target_id].display_order = order
+
         db.commit()
         return True
     except Exception as e:

@@ -1,0 +1,60 @@
+name: Price Monitor
+
+on:
+  schedule:
+    # Run every 5 minutes during market hours (9:30 AM - 4:00 PM EST)
+    # Monday to Friday only
+    # Note: Cron runs in UTC, EST is UTC-5 (or UTC-4 during DST)
+    # 9:30 AM EST = 14:30 UTC, 4:00 PM EST = 21:00 UTC
+    - cron: '*/5 14-21 * * 1-5'
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  price-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run price monitoring
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+        run: |
+          cd backend
+          python -c "
+          import asyncio
+          from database import SessionLocal
+          from monitor import check_all_targets
+
+          async def main():
+              db = SessionLocal()
+              try:
+                  alerts = await check_all_targets(db)
+                  print(f'Price check completed. {len(alerts)} alerts triggered.')
+              finally:
+                  db.close()
+
+          asyncio.run(main())
+          "

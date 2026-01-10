@@ -115,13 +115,13 @@ export default function StockChart({
     <div className="w-full">
       <div className="mb-4">
         <h3 className="text-lg font-semibold">{symbol} - 24H Chart</h3>
-        <p className="text-sm text-foreground-muted">
+        <p className="text-sm text-gray-400">
           Price movement over the last 24 hours
         </p>
       </div>
       <div
         ref={chartContainerRef}
-        className="bg-background-secondary rounded-lg border border-foreground/10"
+        className="bg-gray-900 rounded-lg border border-white/10"
       />
     </div>
   );

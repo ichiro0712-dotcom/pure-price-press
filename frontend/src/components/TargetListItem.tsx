@@ -86,7 +86,7 @@ export default function TargetListItem({
         {/* Mobile: Top row with Symbol + Controls */}
         <div className="flex items-center gap-2 sm:hidden">
           {showDragHandle && (
-            <div className="text-foreground-muted">
+            <div className="text-gray-400" aria-label="ドラッグして並び替え" role="button" tabIndex={0}>
               <GripVertical className="w-4 h-4" />
             </div>
           )}
@@ -108,7 +108,7 @@ export default function TargetListItem({
             </span>
           )}
           {!target.is_active && (
-            <span className="text-[10px] text-foreground-muted bg-foreground/10 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] text-gray-400 bg-white/10 px-1.5 py-0.5 rounded">
               停止中
             </span>
           )}
@@ -122,8 +122,9 @@ export default function TargetListItem({
                 checked={target.is_active}
                 onChange={(e) => onToggleActive(target.id, e.target.checked)}
                 className="sr-only peer"
+                aria-label={`${target.symbol}の監視を${target.is_active ? "停止" : "開始"}`}
               />
-              <div className="w-9 h-5 bg-background-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-accent"></div>
+              <div className="w-9 h-5 bg-gray-800 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-accent/50 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-brand-accent"></div>
             </label>
           )}
           {showDelete && onDelete && (
@@ -132,20 +133,25 @@ export default function TargetListItem({
                 e.stopPropagation();
                 onDelete(target.id);
               }}
-              className="h-5 w-5 flex items-center justify-center rounded bg-red-500/20 hover:bg-red-500/30 text-red-500 transition-colors"
-              title="削除"
+              className="h-5 w-5 flex items-center justify-center rounded bg-red-500/20 hover:bg-red-500/30 text-red-500 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500/50"
+              aria-label={`${target.symbol}を削除`}
             >
               <Trash2 className="w-3 h-3" />
             </button>
           )}
           {showYahooLink && (
-            <ExternalLink className="w-3.5 h-3.5 text-foreground-muted flex-shrink-0" />
+            <ExternalLink className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
           )}
         </div>
 
         {/* Desktop: Drag Handle */}
         {showDragHandle && (
-          <div className="hidden sm:block text-foreground-muted hover:text-foreground transition-colors">
+          <div
+            className="hidden sm:block text-gray-400 hover:text-white transition-colors cursor-grab"
+            aria-label="ドラッグして並び替え"
+            role="button"
+            tabIndex={0}
+          >
             <GripVertical className="w-5 h-5" />
           </div>
         )}
@@ -155,7 +161,7 @@ export default function TargetListItem({
           <div className="hidden sm:flex items-center gap-2 mb-0.5">
             <span className="text-sm sm:text-base font-bold">{target.symbol}</span>
             {target.name && (
-              <span className="text-xs sm:text-sm text-foreground-muted truncate">
+              <span className="text-xs sm:text-sm text-gray-400 truncate">
                 {target.name}
               </span>
             )}
@@ -176,7 +182,7 @@ export default function TargetListItem({
               </span>
             )}
             {!target.is_active && (
-              <span className="text-[10px] sm:text-xs text-foreground-muted bg-foreground/10 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] sm:text-xs text-gray-400 bg-white/10 px-1.5 py-0.5 rounded">
                 停止中
               </span>
             )}
@@ -184,7 +190,7 @@ export default function TargetListItem({
 
           {/* Mobile: Name only */}
           {target.name && (
-            <p className="text-xs text-foreground-muted truncate sm:hidden mb-1">
+            <p className="text-xs text-gray-400 truncate sm:hidden mb-1">
               {target.name}
             </p>
           )}
@@ -204,7 +210,7 @@ export default function TargetListItem({
                       ? "text-green-500"
                       : priceData.day_change < 0
                       ? "text-red-500"
-                      : "text-foreground-muted"
+                      : "text-gray-400"
                   }`}
                 >
                   <span className="hidden sm:inline">前日比:</span>
@@ -217,18 +223,19 @@ export default function TargetListItem({
               )}
               {priceData.month_change !== null && (
                 <div
-                  className={`hidden sm:flex items-center gap-1 ${
+                  className={`flex items-center gap-0.5 sm:gap-1 ${
                     priceData.month_change > 0
                       ? "text-green-500"
                       : priceData.month_change < 0
                       ? "text-red-500"
-                      : "text-foreground-muted"
+                      : "text-gray-400"
                   }`}
                 >
-                  <span>前月比:</span>
+                  <span className="hidden sm:inline">前月比:</span>
+                  <span className="sm:hidden">月:</span>
                   <span className="font-semibold">
                     {priceData.month_change > 0 ? "+" : ""}
-                    {priceData.month_change.toFixed(2)}%
+                    {priceData.month_change.toFixed(1)}%
                   </span>
                 </div>
               )}
@@ -242,10 +249,10 @@ export default function TargetListItem({
                 <span className="px-1.5 py-0.5 bg-brand-accent/20 text-brand-accent rounded">
                   {formatInterval(target.interval_minutes)}
                 </span>
-                <span className="px-1.5 py-0.5 bg-foreground/10 rounded">
+                <span className="px-1.5 py-0.5 bg-white/10 rounded">
                   {target.threshold_percent}%
                 </span>
-                <span className="px-1.5 py-0.5 bg-foreground/10 rounded">
+                <span className="px-1.5 py-0.5 bg-white/10 rounded">
                   {target.direction === "increase"
                     ? "↑"
                     : target.direction === "decrease"
@@ -253,14 +260,14 @@ export default function TargetListItem({
                     : "↕"}
                 </span>
                 {target.conditions && target.conditions.length > 1 && (
-                  <span className="text-foreground-muted">
+                  <span className="text-gray-400">
                     +{target.conditions.length - 1}条件
                   </span>
                 )}
               </>
             )}
             {latestAlert && (
-              <span className="text-foreground-muted">
+              <span className="text-gray-400">
                 最終:{" "}
                 {new Date(latestAlert.triggered_at).toLocaleString("ja-JP", {
                   month: "short",
@@ -281,19 +288,19 @@ export default function TargetListItem({
               <div className="w-8"></div>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1">
-                  <span className="text-foreground-muted">間隔:</span>
+                  <span className="text-gray-400">間隔:</span>
                   <span className="font-semibold">
                     {formatInterval(target.interval_minutes)}
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-foreground-muted">閾値:</span>
+                  <span className="text-gray-400">閾値:</span>
                   <span className="font-semibold text-brand-accent">
                     {target.threshold_percent}%
                   </span>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="text-foreground-muted">方向:</span>
+                  <span className="text-gray-400">方向:</span>
                   <span className="font-semibold">
                     {target.direction === "increase"
                       ? "↑"
@@ -325,19 +332,19 @@ export default function TargetListItem({
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1">
-                        <span className="text-foreground-muted">間隔:</span>
+                        <span className="text-gray-400">間隔:</span>
                         <span className="font-semibold">
                           {formatInterval(condition.interval_minutes)}
                         </span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-foreground-muted">閾値:</span>
+                        <span className="text-gray-400">閾値:</span>
                         <span className="font-semibold text-brand-accent">
                           {condition.threshold_percent}%
                         </span>
                       </div>
                       <div className="flex items-center gap-1">
-                        <span className="text-foreground-muted">方向:</span>
+                        <span className="text-gray-400">方向:</span>
                         <span className="font-semibold">
                           {condition.direction === "increase"
                             ? "↑"
@@ -354,7 +361,7 @@ export default function TargetListItem({
 
             {/* Latest alert info for dashboard */}
             {latestAlert && (
-              <div className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+              <div className="text-[10px] sm:text-xs text-gray-400 mt-1">
                 最終アラート:{" "}
                 {new Date(latestAlert.triggered_at).toLocaleString("ja-JP", {
                   month: "short",
@@ -379,9 +386,10 @@ export default function TargetListItem({
                 checked={target.is_active}
                 onChange={(e) => onToggleActive(target.id, e.target.checked)}
                 className="sr-only peer"
+                aria-label={`${target.symbol}の監視を${target.is_active ? "停止" : "開始"}`}
               />
-              <div className="w-11 h-6 bg-background-tertiary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-accent"></div>
-              <span className="ml-2 text-xs text-foreground-muted whitespace-nowrap">
+              <div className="w-11 h-6 bg-gray-800 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-accent/50 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-accent"></div>
+              <span className="ml-2 text-xs text-gray-400 whitespace-nowrap">
                 {target.is_active ? "ON" : "OFF"}
               </span>
             </label>
@@ -392,14 +400,14 @@ export default function TargetListItem({
                 e.stopPropagation();
                 onDelete(target.id);
               }}
-              className="h-6 w-6 flex items-center justify-center rounded bg-red-500/20 hover:bg-red-500/30 text-red-500 transition-colors"
-              title="削除"
+              className="h-6 w-6 flex items-center justify-center rounded bg-red-500/20 hover:bg-red-500/30 text-red-500 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500/50"
+              aria-label={`${target.symbol}を削除`}
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
           {showYahooLink && (
-            <ExternalLink className="w-4 h-4 text-foreground-muted flex-shrink-0" />
+            <ExternalLink className="w-4 h-4 text-gray-400 flex-shrink-0" />
           )}
         </div>
       </div>

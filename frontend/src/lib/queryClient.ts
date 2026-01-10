@@ -24,10 +24,13 @@ export const queryKeys = {
   targets: ["targets"] as const,
   target: (id: number) => ["targets", id] as const,
   targetPrice: (id: number) => ["targets", id, "price"] as const,
-  alerts: ["alerts"] as const,
+  alertsBase: ["alerts"] as const,
+  alerts: (params?: { limit?: number; symbol?: string; days?: number }) =>
+    ["alerts", "list", params ?? {}] as const,
   alertsNew: (since?: string) => ["alerts", "new", since] as const,
   alert: (id: number) => ["alerts", id] as const,
   stats: ["dashboard", "stats"] as const,
   categories: ["categories"] as const,
   config: ["config"] as const,
+  news: ["news"] as const,
 };

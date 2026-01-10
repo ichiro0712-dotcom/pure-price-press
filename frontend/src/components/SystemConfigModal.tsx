@@ -87,23 +87,23 @@ export default function SystemConfigModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-background border border-foreground/10 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-950 border border-white/10 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-background border-b border-foreground/10 px-6 py-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-gray-950 border-b border-white/10 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-brand-gold/20 rounded-lg flex items-center justify-center">
               <SettingsIcon className="w-5 h-5 text-brand-gold" />
             </div>
             <div>
               <h2 className="text-xl font-bold">外部システム設定</h2>
-              <p className="text-sm text-foreground-muted">
+              <p className="text-sm text-gray-400">
                 外部連携とデータソースの設定
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-background-tertiary transition-colors flex items-center justify-center"
+            className="w-8 h-8 rounded-lg hover:bg-gray-800 transition-colors flex items-center justify-center"
           >
             <X className="w-5 h-5" />
           </button>
@@ -123,7 +123,7 @@ export default function SystemConfigModal({
               value={discordWebhook}
               onChange={(e) => setDiscordWebhook(e.target.value)}
             />
-            <p className="text-xs text-foreground-muted mt-1">
+            <p className="text-xs text-gray-400 mt-1">
               Discordでアラート通知を受信
             </p>
           </div>
@@ -140,13 +140,13 @@ export default function SystemConfigModal({
               value={openaiKey}
               onChange={(e) => setOpenaiKey(e.target.value)}
             />
-            <p className="text-xs text-foreground-muted mt-1">
+            <p className="text-xs text-gray-400 mt-1">
               AI による価格変動分析を有効化
             </p>
           </div>
 
           {/* Divider */}
-          <div className="border-t border-foreground/10 pt-6">
+          <div className="border-t border-white/10 pt-6">
             <h3 className="text-lg font-bold mb-4">株価データソース設定</h3>
 
             {/* Data Source Selection */}
@@ -162,14 +162,14 @@ export default function SystemConfigModal({
                 <option value="yfinance">Yahoo Finance (yfinance) - 無料</option>
                 <option value="alphavantage">Alpha Vantage - API キー必要</option>
               </select>
-              <p className="text-xs text-foreground-muted mt-1">
+              <p className="text-xs text-gray-400 mt-1">
                 株価データを取得するデータソースを選択
               </p>
             </div>
 
             {/* Alpha Vantage API Key (conditional) */}
             {priceDataSource === "alphavantage" && (
-              <div className="bg-background-secondary rounded-lg p-4 border border-foreground/10">
+              <div className="bg-gray-900 rounded-lg p-4 border border-white/10">
                 <label className="block text-sm font-medium mb-2">
                   Alpha Vantage API Key
                 </label>
@@ -180,7 +180,7 @@ export default function SystemConfigModal({
                   value={alphaVantageKey}
                   onChange={(e) => setAlphaVantageKey(e.target.value)}
                 />
-                <p className="text-xs text-foreground-muted mt-2">
+                <p className="text-xs text-gray-400 mt-2">
                   Alpha Vantage の API キーが必要です。
                   <a
                     href="https://www.alphavantage.co/support/#api-key"
@@ -205,7 +205,7 @@ export default function SystemConfigModal({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-background border-t border-foreground/10 px-6 py-4 flex items-center justify-end gap-3">
+        <div className="sticky bottom-0 bg-gray-950 border-t border-white/10 px-6 py-4 flex items-center justify-end gap-3">
           <button
             onClick={onClose}
             className="btn btn-secondary"

@@ -361,7 +361,7 @@ export default function TargetsPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-bold mb-1 sm:mb-2">アラート登録</h1>
-        <p className="text-sm sm:text-base text-foreground-muted">
+        <p className="text-sm sm:text-base text-gray-400">
           監視する銘柄の追加と管理
         </p>
       </div>
@@ -394,7 +394,7 @@ export default function TargetsPage() {
           </div>
           <div>
             <h2 className="text-lg sm:text-xl font-bold">新規アラートを追加</h2>
-            <p className="text-xs sm:text-sm text-foreground-muted">
+            <p className="text-xs sm:text-sm text-gray-400">
               価格変動を監視する銘柄を追加
             </p>
           </div>
@@ -420,7 +420,7 @@ export default function TargetsPage() {
                 }
                 required
               />
-              <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
                 株式ティッカーシンボル
               </p>
             </div>
@@ -439,7 +439,7 @@ export default function TargetsPage() {
                   setNewTarget({ ...newTarget, name: e.target.value })
                 }
               />
-              <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
                 銘柄の表示名
               </p>
             </div>
@@ -464,7 +464,7 @@ export default function TargetsPage() {
                   <option key={cat} value={cat} />
                 ))}
               </datalist>
-              <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
                 銘柄をグループ化するカテゴリー（既存のカテゴリーから選択または新規入力）
               </p>
             </div>
@@ -472,10 +472,10 @@ export default function TargetsPage() {
           </div>
 
           {/* 監視条件 */}
-          <div className="border-t border-foreground/10 pt-4 sm:pt-6">
+          <div className="border-t border-white/10 pt-4 sm:pt-6">
             <div className="mb-3 sm:mb-4">
               <h3 className="text-base sm:text-lg font-bold">監視条件</h3>
-              <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
                 条件を追加し、AND／ORで組み合わせます
               </p>
             </div>
@@ -491,7 +491,7 @@ export default function TargetsPage() {
                         グループ {groupIndex + 1}
                       </span>
                       {group.length > 1 && (
-                        <span className="text-[10px] sm:text-xs text-foreground-muted hidden sm:inline">
+                        <span className="text-[10px] sm:text-xs text-gray-400 hidden sm:inline">
                           （すべての条件を満たす）
                         </span>
                       )}
@@ -519,7 +519,7 @@ export default function TargetsPage() {
                                   <option value="AND">AND</option>
                                   <option value="OR">OR</option>
                                 </select>
-                                <span className="text-[10px] sm:text-xs text-foreground-muted hidden sm:inline">
+                                <span className="text-[10px] sm:text-xs text-gray-400 hidden sm:inline">
                                   {condition.operator === "OR"
                                     ? "→ 新グループ"
                                     : "→ 同グループ"}
@@ -528,7 +528,7 @@ export default function TargetsPage() {
                             )}
 
                             {/* 条件の設定 */}
-                            <div className="bg-background-secondary rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                            <div className="bg-gray-900 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
                               <div className="flex-1 w-full grid grid-cols-3 gap-2 sm:gap-4">
                                 {/* Interval */}
                                 <div>
@@ -633,7 +633,7 @@ export default function TargetsPage() {
                 <button
                   type="button"
                   onClick={() => handleAddCondition("AND")}
-                  className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1"
+                  className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-gray-800 hover:bg-white/10 text-white transition-all duration-200 flex items-center gap-1"
                 >
                   <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   AND追加
@@ -641,7 +641,7 @@ export default function TargetsPage() {
                 <button
                   type="button"
                   onClick={() => handleAddCondition("OR")}
-                  className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1"
+                  className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-gray-800 hover:bg-white/10 text-white transition-all duration-200 flex items-center gap-1"
                 >
                   <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   OR追加
@@ -695,7 +695,7 @@ export default function TargetsPage() {
           <Skeleton variant="card" count={5} />
         ) : displayTargets.length === 0 ? (
           <div className="card text-center py-8 sm:py-12 px-4">
-            <p className="text-sm sm:text-base text-foreground-muted">
+            <p className="text-sm sm:text-base text-gray-400">
               まだ銘柄がありません。上のフォームから最初の銘柄を追加してください
             </p>
           </div>
@@ -704,14 +704,14 @@ export default function TargetsPage() {
             {Object.entries(getTargetsByCategory()).map(([category, categoryTargets]) => (
               <div
                 key={category}
-                className="border border-foreground/10 rounded-lg overflow-hidden"
+                className="border border-white/10 rounded-lg overflow-hidden"
               >
                 {/* Category Header - Droppable Area */}
                 <button
                   onClick={() => toggleCategory(category)}
                   onDragOver={handleCategoryDragOver}
                   onDrop={(e) => handleCategoryDrop(e, category)}
-                  className={`w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-background-secondary hover:bg-background-tertiary transition-colors ${
+                  className={`w-full flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 bg-gray-900 hover:bg-gray-800 transition-colors ${
                     draggedTarget && draggedTarget.category !== (category === "未分類" ? null : category)
                       ? "ring-2 ring-brand-accent ring-inset"
                       : ""
@@ -719,12 +719,12 @@ export default function TargetsPage() {
                 >
                   <div className="flex items-center gap-2">
                     {collapsedCategories.has(category) ? (
-                      <ChevronRight className="w-4 h-4 text-foreground-muted" />
+                      <ChevronRight className="w-4 h-4 text-gray-400" />
                     ) : (
-                      <ChevronDown className="w-4 h-4 text-foreground-muted" />
+                      <ChevronDown className="w-4 h-4 text-gray-400" />
                     )}
                     <span className="text-sm font-semibold">{category}</span>
-                    <span className="text-xs text-foreground-muted bg-background-tertiary px-2 py-0.5 rounded-full">
+                    <span className="text-xs text-gray-400 bg-gray-800 px-2 py-0.5 rounded-full">
                       {categoryTargets.length}
                     </span>
                   </div>
@@ -778,7 +778,7 @@ export default function TargetsPage() {
               <h2 className="text-lg sm:text-2xl font-bold">編集: {editingTarget.symbol}</h2>
               <button
                 onClick={handleCloseEdit}
-                className="text-foreground-muted hover:text-foreground transition-colors p-1"
+                className="text-gray-400 hover:text-white transition-colors p-1"
               >
                 <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
@@ -803,7 +803,7 @@ export default function TargetsPage() {
                       setEditingTarget({ ...editingTarget, name: e.target.value || null })
                     }
                   />
-                  <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+                  <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
                     銘柄の表示名
                   </p>
                 </div>
@@ -828,7 +828,7 @@ export default function TargetsPage() {
                       <option key={cat} value={cat} />
                     ))}
                   </datalist>
-                  <p className="text-[10px] sm:text-xs text-foreground-muted mt-1">
+                  <p className="text-[10px] sm:text-xs text-gray-400 mt-1">
                     銘柄をグループ化するカテゴリー
                   </p>
                 </div>
@@ -850,7 +850,7 @@ export default function TargetsPage() {
                             className={`px-3 sm:px-4 py-1.5 sm:py-2 ${
                               condition.operator === "OR"
                                 ? "bg-brand-accent/20 text-brand-accent"
-                                : "bg-background-tertiary text-foreground-muted"
+                                : "bg-gray-800 text-gray-400"
                             } font-bold rounded-lg text-xs sm:text-sm`}
                           >
                             {condition.operator === "OR" ? "OR" : "AND"}
@@ -860,7 +860,7 @@ export default function TargetsPage() {
                       )}
 
                       {/* Condition Settings */}
-                      <div className="bg-background-secondary rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                      <div className="bg-gray-900 rounded-lg p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
                         <div className="flex-1 w-full grid grid-cols-3 gap-2 sm:gap-4">
                           {/* Interval */}
                           <div>
@@ -950,7 +950,7 @@ export default function TargetsPage() {
                     <button
                       type="button"
                       onClick={() => handleAddEditCondition("AND")}
-                      className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1"
+                      className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-gray-800 hover:bg-white/10 text-white transition-all duration-200 flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       AND追加
@@ -958,7 +958,7 @@ export default function TargetsPage() {
                     <button
                       type="button"
                       onClick={() => handleAddEditCondition("OR")}
-                      className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-background-tertiary hover:bg-foreground/10 text-foreground transition-all duration-200 flex items-center gap-1"
+                      className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm rounded-lg bg-gray-800 hover:bg-white/10 text-white transition-all duration-200 flex items-center gap-1"
                     >
                       <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                       OR追加

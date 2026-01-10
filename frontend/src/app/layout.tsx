@@ -37,10 +37,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ja" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="min-h-screen bg-background text-foreground">
+      <body className="min-h-screen bg-gray-950 text-white">
         <QueryProvider>
         {/* Header */}
-        <header className="border-b border-foreground/10 bg-background-secondary/80 backdrop-blur-sm sticky top-0 z-50">
+        <header className="border-b border-white/10 bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
               {/* Logo */}
@@ -52,7 +52,7 @@ export default function RootLayout({
                   <h1 className="text-xl font-bold text-gradient">
                     Pure Price Press
                   </h1>
-                  <p className="text-xs text-foreground-muted">
+                  <p className="text-xs text-gray-400">
                     ニュースからバイアスを取り除こう
                   </p>
                 </div>
@@ -68,12 +68,12 @@ export default function RootLayout({
         <main className="container mx-auto px-4 py-8">{children}</main>
 
         {/* Footer */}
-        <footer className="border-t border-foreground/10 bg-background-secondary mt-20">
+        <footer className="border-t border-white/10 bg-gray-900 mt-20">
           <div className="container mx-auto px-4 py-6">
             <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="text-sm text-foreground-muted">
+              <div className="text-sm text-gray-400">
                 <p>
-                  <span className="font-bold text-foreground">
+                  <span className="font-bold text-white">
                     Pure Price Press
                   </span>{" "}
                   - ニュースからバイアスを取り除こう
@@ -87,13 +87,13 @@ export default function RootLayout({
                   href="https://github.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-foreground-muted hover:text-brand-accent transition-colors"
+                  className="text-gray-400 hover:text-brand-accent transition-colors"
                 >
                   GitHub
                 </a>
                 <a
                   href="#"
-                  className="text-foreground-muted hover:text-brand-accent transition-colors"
+                  className="text-gray-400 hover:text-brand-accent transition-colors"
                 >
                   ドキュメント
                 </a>

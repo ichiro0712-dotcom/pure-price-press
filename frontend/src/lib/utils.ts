@@ -133,7 +133,7 @@ export function getChangeRateColorClass(changeRate: number): string {
   } else if (changeRate < 0) {
     return "text-drop";
   }
-  return "text-foreground-muted";
+  return "text-gray-400";
 }
 
 /**

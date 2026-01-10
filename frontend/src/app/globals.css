@@ -19,7 +19,7 @@
 @layer components {
   /* Card styles */
   .card {
-    @apply bg-background-secondary border border-foreground/10 rounded-lg p-6 shadow-lg;
+    @apply bg-[#0A0A0A] border border-white/10 rounded-lg p-6 shadow-lg;
   }
 
   .card-hover {
@@ -36,7 +36,7 @@
   }
 
   .btn-secondary {
-    @apply bg-background-tertiary hover:bg-foreground/10 text-foreground border border-foreground/20;
+    @apply bg-[#171717] hover:bg-white/10 text-white border border-white/20;
   }
 
   .btn-danger {
@@ -45,8 +45,8 @@
 
   /* Input styles */
   .input {
-    @apply w-full px-4 py-2 bg-background-tertiary border border-foreground/20 rounded-lg
-           text-foreground placeholder:text-foreground-muted
+    @apply w-full px-4 py-2 bg-[#171717] border border-white/20 rounded-lg
+           text-white placeholder:text-gray-500
            focus:outline-none focus:ring-2 focus:ring-brand-accent focus:border-transparent
            transition-all duration-200;
   }
@@ -118,15 +118,16 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-background-secondary;
+  background-color: #0A0A0A;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-foreground/20 rounded-full;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-foreground/30;
+  background-color: rgba(255, 255, 255, 0.3);
 }
 
 /* Loading spinner */

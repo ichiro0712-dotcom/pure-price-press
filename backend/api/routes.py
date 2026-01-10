@@ -438,8 +438,456 @@ async def get_vapid_public_key(db: Session = Depends(get_db)):
     )
 
 
+# ==============================================================================
+# News Feature Routes
+# ==============================================================================
+
+@router.get("/news", response_model=schemas.NewsListResponse)
+async def get_curated_news(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    min_score: float = Query(0.0, ge=0.0, le=10.0),
+    translate: bool = Query(True, description="Translate content to Japanese"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get curated news from today's digest.
+
+    - **limit**: Maximum number of news items to return
+    - **offset**: Number of items to skip (pagination)
+    - **min_score**: Minimum importance score filter
+    - **translate**: Translate content to Japanese (default: true)
+    """
+    from models import CuratedNews, DailyDigest
+    from datetime import datetime, timezone, timedelta
+
+    try:
+        # Get today's digest date (start of day UTC)
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Query curated news
+        query = db.query(CuratedNews).filter(
+            CuratedNews.digest_date >= today - timedelta(days=1),
+            CuratedNews.importance_score >= min_score
+        ).order_by(CuratedNews.importance_score.desc())
+
+        total_count = query.count()
+        news_items = query.offset(offset).limit(limit).all()
+
+        # Get latest digest
+        digest = db.query(DailyDigest).order_by(
+            DailyDigest.digest_date.desc()
+        ).first()
+
+        # Convert to response models
+        news_responses = [schemas.CuratedNewsResponse.model_validate(n) for n in news_items]
+
+        # Translate if requested
+        if translate and news_responses:
+            try:
+                from services.news.translator import get_translator
+                translator = get_translator()
+
+                for response in news_responses:
+                    if response.title:
+                        response.title = translator.translate_text(response.title)
+                    if response.relevance_reason:
+                        response.relevance_reason = translator.translate_text(response.relevance_reason)
+            except Exception as e:
+                print(f"Translation error in news list: {e}")
+                # Continue with untranslated content
+
+        return schemas.NewsListResponse(
+            news=news_responses,
+            digest=schemas.DailyDigestResponse.model_validate(digest) if digest else None,
+            total_count=total_count
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch news: {str(e)}")
+
+
+@router.get("/news/{news_id}", response_model=schemas.CuratedNewsResponse)
+async def get_news_detail(
+    news_id: int,
+    translate: bool = Query(True, description="Translate content to Japanese"),
+    db: Session = Depends(get_db)
+):
+    """Get detailed information about a specific news item."""
+    from models import CuratedNews
+
+    news = db.query(CuratedNews).filter(CuratedNews.id == news_id).first()
+    if not news:
+        raise HTTPException(status_code=404, detail="News not found")
+
+    response = schemas.CuratedNewsResponse.model_validate(news)
+
+    # Translate if requested
+    if translate:
+        try:
+            from services.news.translator import get_translator
+            translator = get_translator()
+
+            # Translate text fields
+            if response.title:
+                response.title = translator.translate_text(response.title)
+            if response.relevance_reason:
+                response.relevance_reason = translator.translate_text(response.relevance_reason)
+            if response.predicted_impact:
+                response.predicted_impact = translator.translate_text(response.predicted_impact)
+            if response.supply_chain_impact and response.supply_chain_impact != "N/A":
+                response.supply_chain_impact = translator.translate_text(response.supply_chain_impact)
+            if response.competitor_impact and response.competitor_impact != "N/A":
+                response.competitor_impact = translator.translate_text(response.competitor_impact)
+        except Exception as e:
+            print(f"Translation error: {e}")
+            # Return untranslated if translation fails
+
+    return response
+
+
+@router.get("/news/digest/latest", response_model=schemas.DailyDigestResponse)
+async def get_latest_digest(db: Session = Depends(get_db)):
+    """Get the latest daily digest."""
+    from models import DailyDigest
+
+    digest = db.query(DailyDigest).order_by(
+        DailyDigest.digest_date.desc()
+    ).first()
+
+    if not digest:
+        raise HTTPException(status_code=404, detail="No digest available")
+    return schemas.DailyDigestResponse.model_validate(digest)
+
+
+@router.post("/news/batch/run", response_model=schemas.NewsBatchRunResponse)
+async def run_news_batch(
+    request: schemas.NewsBatchRunRequest = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Manually trigger a news batch processing run.
+    This is typically run automatically by a scheduler.
+
+    - **hours_back**: Number of hours to look back for news (default: 24)
+    """
+    import asyncio
+
+    try:
+        # Import here to avoid circular dependency
+        import sys
+        sys.path.insert(0, '/Users/kawashimaichirou/Desktop/バイブコーディング/Pure Price Press/backend')
+        from services.news.batch import NewsBatchProcessor
+
+        hours_back = request.hours_back if request else 24
+
+        # Run batch processing
+        processor = NewsBatchProcessor(db)
+        results = await processor.run_daily_batch(hours_back=hours_back)
+
+        return schemas.NewsBatchRunResponse(
+            batch_id=results.get("batch_id", ""),
+            status=results.get("status", "unknown"),
+            message=f"Batch processing {results.get('status', 'completed')}",
+            processing_time_seconds=results.get("processing_time_seconds"),
+            total_collected=results.get("steps", {}).get("collection", {}).get("total_collected"),
+            total_curated=results.get("steps", {}).get("analysis", {}).get("total_curated"),
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to run batch: {str(e)}")
+
+
+@router.get("/news/digest/history", response_model=List[schemas.DailyDigestResponse])
+async def get_digest_history(
+    limit: int = Query(7, ge=1, le=30),
+    db: Session = Depends(get_db)
+):
+    """Get history of daily digests."""
+    from models import DailyDigest
+
+    digests = db.query(DailyDigest).order_by(
+        DailyDigest.digest_date.desc()
+    ).limit(limit).all()
+
+    return [schemas.DailyDigestResponse.model_validate(d) for d in digests]
+
+
 # Health Check
 @router.get("/health", response_model=schemas.MessageResponse)
 async def health_check():
     """Health check endpoint."""
     return schemas.MessageResponse(message="Pure Price Press API is running")
+
+
+# ==============================================================================
+# External System Status Routes
+# ==============================================================================
+
+@router.get("/system/status")
+async def get_system_status(db: Session = Depends(get_db)):
+    """
+    Get status of all external systems and API connections.
+    Used by the settings page to show connection status.
+    """
+    import os
+    import httpx
+
+    status = {
+        "systems": [],
+        "overall_status": "healthy"
+    }
+
+    # Check Gemini API
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    gemini_status = {
+        "name": "Gemini API",
+        "description": "ニュース分析・翻訳に使用",
+        "configured": bool(gemini_key),
+        "status": "unknown",
+        "api_key_preview": f"{gemini_key[:8]}...{gemini_key[-4:]}" if len(gemini_key) > 12 else "未設定",
+        "env_var": "GEMINI_API_KEY"
+    }
+
+    if gemini_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            # Try a simple request to verify the key works
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents="Hello"
+            )
+            gemini_status["status"] = "connected"
+        except Exception as e:
+            gemini_status["status"] = "error"
+            gemini_status["error"] = str(e)[:100]
+    else:
+        gemini_status["status"] = "not_configured"
+
+    status["systems"].append(gemini_status)
+
+    # Check Alpha Vantage API
+    alpha_key_config = crud.get_config(db, "alpha_vantage_api_key")
+    alpha_key = alpha_key_config.value if alpha_key_config else os.getenv("ALPHA_VANTAGE_API_KEY", "")
+    alpha_status = {
+        "name": "Alpha Vantage",
+        "description": "株価データ・ニュース取得に使用",
+        "configured": bool(alpha_key),
+        "status": "unknown",
+        "api_key_preview": f"{alpha_key[:4]}...{alpha_key[-4:]}" if len(alpha_key) > 8 else "未設定",
+        "env_var": "ALPHA_VANTAGE_API_KEY"
+    }
+
+    if alpha_key:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=IBM&interval=5min&apikey={alpha_key}",
+                    timeout=10.0
+                )
+                data = response.json()
+                if "Error Message" in data or "Note" in data:
+                    alpha_status["status"] = "rate_limited" if "Note" in data else "error"
+                    alpha_status["error"] = data.get("Note", data.get("Error Message", ""))[:100]
+                else:
+                    alpha_status["status"] = "connected"
+        except Exception as e:
+            alpha_status["status"] = "error"
+            alpha_status["error"] = str(e)[:100]
+    else:
+        alpha_status["status"] = "not_configured"
+
+    status["systems"].append(alpha_status)
+
+    # Check Finnhub API
+    finnhub_key = os.getenv("FINNHUB_API_KEY", "")
+    finnhub_status = {
+        "name": "Finnhub",
+        "description": "金融ニュース取得に使用",
+        "configured": bool(finnhub_key),
+        "status": "unknown",
+        "api_key_preview": f"{finnhub_key[:4]}...{finnhub_key[-4:]}" if len(finnhub_key) > 8 else "未設定",
+        "env_var": "FINNHUB_API_KEY"
+    }
+
+    if finnhub_key:
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"https://finnhub.io/api/v1/quote?symbol=AAPL&token={finnhub_key}",
+                    timeout=10.0
+                )
+                data = response.json()
+                if data.get("error"):
+                    finnhub_status["status"] = "error"
+                    finnhub_status["error"] = data.get("error", "")[:100]
+                else:
+                    finnhub_status["status"] = "connected"
+        except Exception as e:
+            finnhub_status["status"] = "error"
+            finnhub_status["error"] = str(e)[:100]
+    else:
+        finnhub_status["status"] = "not_configured"
+
+    status["systems"].append(finnhub_status)
+
+    # Check Yahoo Finance (no API key required)
+    yfinance_status = {
+        "name": "Yahoo Finance",
+        "description": "株価データ取得に使用（無料）",
+        "configured": True,
+        "status": "unknown",
+        "api_key_preview": "不要",
+        "env_var": None
+    }
+
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker("AAPL")
+        hist = ticker.history(period="1d")
+        if not hist.empty:
+            yfinance_status["status"] = "connected"
+        else:
+            yfinance_status["status"] = "error"
+            yfinance_status["error"] = "No data returned"
+    except Exception as e:
+        yfinance_status["status"] = "error"
+        yfinance_status["error"] = str(e)[:100]
+
+    status["systems"].append(yfinance_status)
+
+    # Check OpenAI API (optional)
+    openai_key_config = crud.get_config(db, "openai_api_key")
+    openai_key = openai_key_config.value if openai_key_config else os.getenv("OPENAI_API_KEY", "")
+    openai_status = {
+        "name": "OpenAI API",
+        "description": "AI分析に使用（オプション）",
+        "configured": bool(openai_key),
+        "status": "unknown",
+        "api_key_preview": f"sk-...{openai_key[-4:]}" if len(openai_key) > 8 else "未設定",
+        "env_var": "OPENAI_API_KEY"
+    }
+
+    if openai_key:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_key)
+            # Just check if we can list models (lightweight check)
+            models = client.models.list()
+            openai_status["status"] = "connected"
+        except Exception as e:
+            openai_status["status"] = "error"
+            openai_status["error"] = str(e)[:100]
+    else:
+        openai_status["status"] = "not_configured"
+
+    status["systems"].append(openai_status)
+
+    # Check Discord Webhook
+    discord_config = crud.get_config(db, "discord_webhook_url")
+    discord_url = discord_config.value if discord_config else ""
+    discord_status = {
+        "name": "Discord Webhook",
+        "description": "アラート通知に使用",
+        "configured": bool(discord_url),
+        "status": "unknown",
+        "api_key_preview": f"...{discord_url[-20:]}" if len(discord_url) > 20 else "未設定",
+        "env_var": None
+    }
+
+    if discord_url:
+        discord_status["status"] = "configured"
+    else:
+        discord_status["status"] = "not_configured"
+
+    status["systems"].append(discord_status)
+
+    # Determine overall status
+    connected_count = sum(1 for s in status["systems"] if s["status"] == "connected" or s["status"] == "configured")
+    error_count = sum(1 for s in status["systems"] if s["status"] == "error")
+
+    if error_count > 0:
+        status["overall_status"] = "degraded"
+    elif connected_count < 2:
+        status["overall_status"] = "minimal"
+    else:
+        status["overall_status"] = "healthy"
+
+    return status
+
+
+@router.get("/system/api-keys")
+async def get_api_keys(db: Session = Depends(get_db)):
+    """
+    Get API keys for display (masked for security).
+    Shows only preview, not full keys.
+    """
+    import os
+
+    def mask_key(key: str, show_chars: int = 4) -> str:
+        """Mask API key, showing only first and last few characters."""
+        if not key or len(key) <= show_chars * 2:
+            return "••••••••"
+        return f"{key[:show_chars]}••••••••{key[-show_chars:]}"
+
+    keys = []
+
+    # Gemini
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    if gemini_key:
+        keys.append({
+            "name": "GEMINI_API_KEY",
+            "display_name": "Gemini API Key",
+            "masked_value": mask_key(gemini_key),
+            "is_set": True,
+            "source": "environment"
+        })
+
+    # Alpha Vantage
+    alpha_config = crud.get_config(db, "alpha_vantage_api_key")
+    alpha_key = alpha_config.value if alpha_config else os.getenv("ALPHA_VANTAGE_API_KEY", "")
+    if alpha_key:
+        keys.append({
+            "name": "ALPHA_VANTAGE_API_KEY",
+            "display_name": "Alpha Vantage API Key",
+            "masked_value": mask_key(alpha_key),
+            "is_set": True,
+            "source": "database" if alpha_config else "environment"
+        })
+
+    # Finnhub
+    finnhub_key = os.getenv("FINNHUB_API_KEY", "")
+    if finnhub_key:
+        keys.append({
+            "name": "FINNHUB_API_KEY",
+            "display_name": "Finnhub API Key",
+            "masked_value": mask_key(finnhub_key),
+            "is_set": True,
+            "source": "environment"
+        })
+
+    # OpenAI
+    openai_config = crud.get_config(db, "openai_api_key")
+    openai_key = openai_config.value if openai_config else os.getenv("OPENAI_API_KEY", "")
+    if openai_key:
+        keys.append({
+            "name": "OPENAI_API_KEY",
+            "display_name": "OpenAI API Key",
+            "masked_value": mask_key(openai_key),
+            "is_set": True,
+            "source": "database" if openai_config else "environment"
+        })
+
+    # Discord Webhook
+    discord_config = crud.get_config(db, "discord_webhook_url")
+    if discord_config and discord_config.value:
+        keys.append({
+            "name": "DISCORD_WEBHOOK_URL",
+            "display_name": "Discord Webhook URL",
+            "masked_value": mask_key(discord_config.value, 8),
+            "is_set": True,
+            "source": "database"
+        })
+
+    return {"keys": keys}

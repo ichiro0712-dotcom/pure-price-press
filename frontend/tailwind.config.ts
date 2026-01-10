@@ -29,6 +29,11 @@ const config: Config = {
           secondary: "#D1D5DB",
           muted: "#9CA3AF",
         },
+        // Flat versions for easier class usage
+        "foreground-secondary": "#D1D5DB",
+        "foreground-muted": "#9CA3AF",
+        "background-secondary": "#0A0A0A",
+        "background-tertiary": "#171717",
         // Alert colors
         surge: {
           DEFAULT: "#10B981",
@@ -56,11 +61,21 @@ const config: Config = {
       animation: {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "fade-in": "fadeIn 0.5s ease-in-out",
+        "dialog-in": "dialogIn 0.2s ease-out",
+        "backdrop-in": "backdropIn 0.2s ease-out",
       },
       keyframes: {
         fadeIn: {
           "0%": { opacity: "0", transform: "translateY(10px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        dialogIn: {
+          "0%": { opacity: "0", transform: "scale(0.95)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        backdropIn: {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
         },
       },
     },

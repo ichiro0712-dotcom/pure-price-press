@@ -80,7 +80,7 @@ export default function MonitorCard({
         ) : (
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-foreground-muted rounded-full"></div>
-            <span className="text-xs text-foreground-muted font-medium">
+            <span className="text-xs text-gray-400 font-medium">
               停止中
             </span>
           </div>
@@ -96,15 +96,15 @@ export default function MonitorCard({
           <div className="flex-1">
             <h3 className="text-xl font-bold">{target.symbol}</h3>
             {target.name && (
-              <p className="text-sm text-foreground-muted">{target.name}</p>
+              <p className="text-sm text-gray-400">{target.name}</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Metrics Grid */}
-      <div className="bg-background-tertiary rounded-lg p-3 mb-4">
-        <p className="text-xs text-foreground-muted mb-1 flex items-center gap-1">
+      <div className="bg-gray-800 rounded-lg p-3 mb-4">
+        <p className="text-xs text-gray-400 mb-1 flex items-center gap-1">
           <TrendingUp className="w-3 h-3" />
           最終価格
         </p>
@@ -114,7 +114,7 @@ export default function MonitorCard({
             : "取得中..."}
         </p>
         {target.last_check_at && (
-          <p className="text-xs text-foreground-muted mt-1">
+          <p className="text-xs text-gray-400 mt-1">
             {formatRelativeTime(target.last_check_at)}
           </p>
         )}
@@ -124,7 +124,7 @@ export default function MonitorCard({
       <div className="mb-4">
         <div className="flex items-center gap-2 mb-2">
           <AlertTriangle className="w-4 h-4 text-brand-accent" />
-          <p className="text-xs font-semibold text-foreground-muted">
+          <p className="text-xs font-semibold text-gray-400">
             監視条件 ({target.conditions?.length || 1}件)
           </p>
         </div>
@@ -164,16 +164,16 @@ export default function MonitorCard({
                         {group.map((condition, condIndex) => (
                           <div
                             key={condIndex}
-                            className="bg-background-tertiary rounded p-2 text-xs"
+                            className="bg-gray-800 rounded p-2 text-xs"
                           >
                             <div className="flex items-center justify-between">
-                              <span className="text-foreground-muted">間隔</span>
+                              <span className="text-gray-400">間隔</span>
                               <span className="font-medium">
                                 {formatInterval(condition.interval_minutes)}
                               </span>
                             </div>
                             <div className="flex items-center justify-between mt-1">
-                              <span className="text-foreground-muted">閾値</span>
+                              <span className="text-gray-400">閾値</span>
                               <span className="font-bold text-brand-accent">
                                 ±{condition.threshold_percent.toFixed(1)}%
                               </span>
@@ -195,15 +195,15 @@ export default function MonitorCard({
             );
           })()
         ) : (
-          <div className="bg-background-tertiary rounded-lg p-3 text-xs">
+          <div className="bg-gray-800 rounded-lg p-3 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-foreground-muted">間隔</span>
+              <span className="text-gray-400">間隔</span>
               <span className="font-medium">
                 {formatInterval(target.interval_minutes)}
               </span>
             </div>
             <div className="flex items-center justify-between mt-1">
-              <span className="text-foreground-muted">閾値</span>
+              <span className="text-gray-400">閾値</span>
               <span className="font-bold text-brand-accent">
                 ±{target.threshold_percent.toFixed(1)}%
               </span>
@@ -213,7 +213,7 @@ export default function MonitorCard({
       </div>
 
       {/* Action Buttons */}
-      <div className="flex items-center gap-2 pt-4 border-t border-foreground/10">
+      <div className="flex items-center gap-2 pt-4 border-t border-white/10">
         {/* Toggle Active */}
         <button
           onClick={handleToggleActive}

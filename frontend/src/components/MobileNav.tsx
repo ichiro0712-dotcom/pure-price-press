@@ -25,7 +25,7 @@ export default function MobileNav() {
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden p-2 rounded-lg hover:bg-background-tertiary transition-colors"
+        className="md:hidden p-2 rounded-lg hover:bg-gray-800 transition-colors"
         aria-label="メニュー"
       >
         {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -40,7 +40,7 @@ export default function MobileNav() {
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
               isActive(item.href)
                 ? "bg-brand-accent/20 text-brand-accent"
-                : "hover:bg-background-tertiary"
+                : "hover:bg-gray-800"
             }`}
           >
             <item.icon className="w-4 h-4" />
@@ -59,7 +59,7 @@ export default function MobileNav() {
 
       {/* Mobile Navigation Drawer */}
       <div
-        className={`fixed top-0 right-0 h-full w-64 bg-background-secondary border-l border-foreground/10 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
+        className={`fixed top-0 right-0 h-full w-64 bg-gray-900 border-l border-white/10 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
           isOpen ? "translate-x-0" : "translate-x-full"
         }`}
       >
@@ -68,7 +68,7 @@ export default function MobileNav() {
             <span className="text-lg font-bold text-gradient">メニュー</span>
             <button
               onClick={() => setIsOpen(false)}
-              className="p-2 rounded-lg hover:bg-background-tertiary transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -83,7 +83,7 @@ export default function MobileNav() {
                 className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
                   isActive(item.href)
                     ? "bg-brand-accent/20 text-brand-accent"
-                    : "hover:bg-background-tertiary"
+                    : "hover:bg-gray-800"
                 }`}
               >
                 <item.icon className="w-5 h-5" />

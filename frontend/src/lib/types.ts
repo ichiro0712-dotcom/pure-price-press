@@ -122,3 +122,62 @@ export interface TargetPriceData {
   year_change: number | null;
   error?: string;
 }
+
+// News Feature Types
+export interface SymbolImpact {
+  direction: "positive" | "negative" | "mixed" | "uncertain" | null;
+  analysis: string | null;
+}
+
+export interface CuratedNews {
+  id: number;
+  title: string;
+  url: string;
+  source: string;
+  region: string;
+  category: string | null;
+  published_at: string | null; // Original article publication time
+  source_count: number; // Number of sources reporting this news
+  related_sources: string[] | null; // Other sources reporting same news
+  importance_score: number;
+  relevance_reason: string;
+  ai_summary: string | null; // AI-generated article summary
+  affected_symbols: string[] | null;
+  symbol_impacts: Record<string, SymbolImpact> | null; // Per-symbol impact analysis
+  predicted_impact: string | null;
+  impact_direction: "positive" | "negative" | "mixed" | "uncertain" | null;
+  supply_chain_impact: string | null;
+  competitor_impact: string | null;
+  verification_passed: boolean;
+  digest_date: string;
+  created_at: string;
+}
+
+export interface DailyDigest {
+  id: number;
+  digest_date: string;
+  total_raw_news: number;
+  total_merged_news: number;
+  total_curated_news: number;
+  processing_time_seconds: number | null;
+  regional_distribution: Record<string, number> | null;
+  category_distribution: Record<string, number> | null;
+  status: string;
+  error_message: string | null;
+  created_at: string;
+}
+
+export interface NewsListResponse {
+  news: CuratedNews[];
+  digest: DailyDigest | null;
+  total_count: number;
+}
+
+export interface NewsBatchRunResponse {
+  batch_id: string;
+  status: string;
+  message: string;
+  processing_time_seconds: number | null;
+  total_collected: number | null;
+  total_curated: number | null;
+}

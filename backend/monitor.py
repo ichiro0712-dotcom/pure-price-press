@@ -58,7 +58,7 @@ class StockMonitor:
             try:
                 info = ticker.info
                 market_cap = info.get('marketCap', None)
-            except:
+            except Exception:
                 market_cap = None
 
             return {
@@ -442,6 +442,7 @@ class StockMonitor:
 
         interval_seconds = int(os.getenv("MONITOR_INTERVAL_SECONDS", "60"))
 
+        # Stock price monitoring
         self.scheduler.add_job(
             self.run_monitoring_cycle,
             'interval',
@@ -449,8 +450,55 @@ class StockMonitor:
             id='monitoring_cycle'
         )
 
+        # News batch processing - daily at 6:00 AM JST (21:00 UTC previous day)
+        news_batch_enabled = os.getenv("NEWS_BATCH_ENABLED", "true").lower() == "true"
+        if news_batch_enabled:
+            self.scheduler.add_job(
+                self.run_news_batch,
+                'cron',
+                hour=21,  # 21:00 UTC = 6:00 AM JST
+                minute=0,
+                id='news_batch_daily',
+                misfire_grace_time=3600  # Allow 1 hour grace time
+            )
+            print("✓ News batch scheduler enabled (daily at 6:00 AM JST)")
+
         self.scheduler.start()
         print(f"✓ Monitoring scheduler started (interval: {interval_seconds}s)")
+
+    def run_news_batch(self) -> None:
+        """Run the daily news batch processing."""
+        import asyncio
+        from services.news.batch import run_batch
+
+        print(f"\n{'='*60}")
+        print(f"News batch started at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{'='*60}")
+
+        db = SessionLocal()
+        try:
+            # Run the async batch process
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(run_batch(db, hours_back=24))
+            loop.close()
+
+            print(f"News batch completed: {result.get('status', 'unknown')}")
+            if result.get('steps', {}).get('analysis', {}):
+                stats = result['steps']['analysis']
+                print(f"  - Total curated: {stats.get('total_curated', 0)}")
+                print(f"  - Average score: {stats.get('avg_score', 0):.1f}")
+
+        except Exception as e:
+            print(f"✗ News batch error: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            db.close()
+
+        print(f"{'='*60}")
+        print("News batch completed")
+        print(f"{'='*60}\n")
 
     def stop(self) -> None:
         """Stop the monitoring scheduler."""
