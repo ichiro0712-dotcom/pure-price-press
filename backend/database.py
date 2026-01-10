@@ -17,12 +17,17 @@ if DATABASE_URL.startswith("postgres://"):
 connect_args = {}
 if DATABASE_URL.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
+elif DATABASE_URL.startswith("postgresql"):
+    # For Supabase/PostgreSQL, use SSL
+    connect_args = {"sslmode": "require"}
 
 engine = create_engine(
     DATABASE_URL,
     connect_args=connect_args,
     echo=False,  # Set to True for SQL query debugging
     pool_pre_ping=True,  # Enable connection health checks
+    pool_size=5,
+    max_overflow=10,
 )
 
 # Create SessionLocal class for database sessions
