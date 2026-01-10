@@ -1,11 +1,12 @@
 """
 News deduplication module.
-Uses embedding-based similarity detection to merge duplicate articles.
+Uses simple text similarity detection to merge duplicate articles.
+Optimized for serverless deployment (no heavy dependencies like numpy/sklearn).
 """
 import uuid
-from typing import List, Dict, Optional, Tuple
+import re
+from typing import List, Dict, Optional
 from dataclasses import dataclass, field
-import numpy as np
 
 from .collector import RawNewsItem
 from .config import SOURCE_PRIORITY, SIMILARITY_THRESHOLD, calculate_importance_boost
@@ -33,28 +34,11 @@ class NewsDeduplicator:
     """
     Deduplicates news articles using text similarity.
 
-    Uses a simple TF-IDF based approach for similarity detection.
-    For production, consider using sentence-transformers for better accuracy.
+    Uses a lightweight text matching approach suitable for serverless deployment.
     """
 
     def __init__(self, similarity_threshold: float = SIMILARITY_THRESHOLD):
         self.similarity_threshold = similarity_threshold
-        self._vectorizer = None
-        self._use_sklearn = False
-
-        # Try to import sklearn for TF-IDF
-        try:
-            from sklearn.feature_extraction.text import TfidfVectorizer
-            from sklearn.metrics.pairwise import cosine_similarity
-            self._vectorizer = TfidfVectorizer(
-                max_features=5000,
-                stop_words="english",
-                ngram_range=(1, 2),
-            )
-            self._use_sklearn = True
-            print("Using sklearn TF-IDF for deduplication")
-        except ImportError:
-            print("sklearn not available, using simple text matching")
 
     def deduplicate(self, news_items: List[RawNewsItem]) -> List[MergedNewsItem]:
         """
@@ -69,63 +53,12 @@ class NewsDeduplicator:
         if not news_items:
             return []
 
-        if self._use_sklearn:
-            return self._deduplicate_with_tfidf(news_items)
-        else:
-            return self._deduplicate_simple(news_items)
-
-    def _deduplicate_with_tfidf(self, news_items: List[RawNewsItem]) -> List[MergedNewsItem]:
-        """Deduplicate using TF-IDF cosine similarity."""
-        from sklearn.metrics.pairwise import cosine_similarity
-
-        # Create text corpus from titles
-        texts = [item.title for item in news_items]
-
-        # Compute TF-IDF matrix
-        tfidf_matrix = self._vectorizer.fit_transform(texts)
-
-        # Compute pairwise cosine similarity
-        similarity_matrix = cosine_similarity(tfidf_matrix)
-
-        # Find clusters of similar articles
-        n = len(news_items)
-        visited = [False] * n
-        clusters: List[List[int]] = []
-
-        for i in range(n):
-            if visited[i]:
-                continue
-
-            # Start new cluster
-            cluster = [i]
-            visited[i] = True
-
-            # Find all similar articles
-            for j in range(i + 1, n):
-                if not visited[j] and similarity_matrix[i, j] >= self.similarity_threshold:
-                    cluster.append(j)
-                    visited[j] = True
-
-            clusters.append(cluster)
-
-        # Merge clusters into single articles
-        merged_items = []
-        for cluster in clusters:
-            merged = self._merge_cluster([news_items[i] for i in cluster])
-            # Store embedding vector (average of cluster)
-            if len(cluster) > 0:
-                cluster_vectors = tfidf_matrix[cluster].toarray()
-                avg_vector = np.mean(cluster_vectors, axis=0).tolist()
-                merged.embedding_vector = avg_vector
-            merged_items.append(merged)
-
-        print(f"Deduplicated {len(news_items)} → {len(merged_items)} articles")
-        return merged_items
+        return self._deduplicate_simple(news_items)
 
     def _deduplicate_simple(self, news_items: List[RawNewsItem]) -> List[MergedNewsItem]:
         """Simple deduplication using exact title matching and word overlap."""
-        seen_titles = {}
-        merged_items = []
+        seen_titles: Dict[str, MergedNewsItem] = {}
+        merged_items: List[MergedNewsItem] = []
 
         for item in news_items:
             # Normalize title for comparison
@@ -164,7 +97,7 @@ class NewsDeduplicator:
                 seen_titles[normalized_title] = merged
                 merged_items.append(merged)
 
-        print(f"Deduplicated {len(news_items)} → {len(merged_items)} articles (simple mode)")
+        print(f"Deduplicated {len(news_items)} → {len(merged_items)} articles")
         return merged_items
 
     def _merge_cluster(self, items: List[RawNewsItem]) -> MergedNewsItem:
@@ -213,7 +146,6 @@ class NewsDeduplicator:
 
     def _normalize_text(self, text: str) -> str:
         """Normalize text for comparison."""
-        import re
         # Convert to lowercase
         text = text.lower()
         # Remove punctuation
@@ -223,7 +155,7 @@ class NewsDeduplicator:
         return text
 
     def _simple_similarity(self, text1: str, text2: str) -> float:
-        """Calculate simple word overlap similarity."""
+        """Calculate simple word overlap similarity using Jaccard index."""
         words1 = set(text1.split())
         words2 = set(text2.split())
 
