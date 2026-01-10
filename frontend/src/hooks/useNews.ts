@@ -71,3 +71,18 @@ export function useRunNewsBatch() {
     },
   });
 }
+
+/**
+ * Hook to refresh news (simple endpoint for serverless)
+ */
+export function useRefreshNews() {
+  const queryClient = useQueryClient();
+
+  return useMutation<NewsBatchRunResponse, Error, void>({
+    mutationFn: () => newsApi.refreshNews(),
+    onSuccess: () => {
+      // Invalidate news queries after successful refresh
+      queryClient.invalidateQueries({ queryKey: queryKeys.news });
+    },
+  });
+}

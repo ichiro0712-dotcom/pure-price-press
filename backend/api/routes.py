@@ -572,6 +572,137 @@ async def run_news_batch(
         raise HTTPException(status_code=500, detail=f"Failed to run batch: {str(e)}")
 
 
+@router.post("/news/refresh", response_model=schemas.NewsBatchRunResponse)
+async def refresh_news(
+    db: Session = Depends(get_db)
+):
+    """
+    Simple news refresh endpoint optimized for Vercel serverless.
+    Collects news from sources, translates to Japanese, and saves to database.
+    """
+    import os
+    import uuid
+    import time
+    from datetime import datetime, timezone
+    from models import CuratedNews
+
+    start_time = time.time()
+    batch_id = str(uuid.uuid4())
+    collected_count = 0
+    saved_count = 0
+
+    try:
+        # Import news collector
+        from services.news.collector import NewsCollector
+
+        # Collect news (last 24 hours)
+        collector = NewsCollector()
+        raw_news = await collector.collect_all(hours_back=24)
+        collected_count = len(raw_news)
+
+        if not raw_news:
+            return schemas.NewsBatchRunResponse(
+                batch_id=batch_id,
+                status="completed",
+                message="No news found in the last 24 hours",
+                processing_time_seconds=time.time() - start_time,
+                total_collected=0,
+                total_curated=0,
+            )
+
+        # Initialize Gemini for translation
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        translate_func = None
+
+        if gemini_key:
+            try:
+                from google import genai
+                client = genai.Client(api_key=gemini_key)
+
+                async def translate_to_japanese(text: str) -> str:
+                    """Translate text to Japanese using Gemini."""
+                    if not text:
+                        return ""
+                    try:
+                        response = client.models.generate_content(
+                            model="gemini-2.0-flash",
+                            contents=f"以下の英語テキストを自然な日本語に翻訳してください。翻訳のみを返し、説明は不要です。\n\n{text}"
+                        )
+                        return response.text.strip()
+                    except Exception as e:
+                        print(f"Translation error: {e}")
+                        return text
+
+                translate_func = translate_to_japanese
+            except Exception as e:
+                print(f"Gemini initialization error: {e}")
+
+        # Get existing URLs to avoid duplicates
+        existing_urls = set(
+            url for (url,) in db.query(CuratedNews.url).all()
+        )
+
+        # Process and save news (limit to 20 for serverless timeout)
+        digest_date = datetime.now(timezone.utc)
+        news_to_process = [n for n in raw_news if n.url not in existing_urls][:20]
+
+        for news_item in news_to_process:
+            try:
+                # Translate title and summary if translator available
+                title = news_item.title
+                summary = news_item.summary or ""
+
+                if translate_func:
+                    title = await translate_func(title)
+                    if summary:
+                        summary = await translate_func(summary)
+
+                # Create CuratedNews entry
+                curated = CuratedNews(
+                    merged_news_id=news_item.id,
+                    digest_date=digest_date,
+                    title=title,
+                    url=news_item.url,
+                    source=news_item.source,
+                    region=news_item.region,
+                    category=news_item.category,
+                    published_at=news_item.published_at,
+                    source_count=1,
+                    related_sources=[],
+                    importance_score=5.0,  # Default score
+                    relevance_reason="自動収集されたニュース",
+                    ai_summary=summary if summary else None,
+                    affected_symbols=[],
+                    symbol_impacts={},
+                    impact_direction="uncertain",
+                )
+
+                db.add(curated)
+                saved_count += 1
+
+            except Exception as e:
+                print(f"Error saving news item: {e}")
+                continue
+
+        db.commit()
+
+        processing_time = time.time() - start_time
+
+        return schemas.NewsBatchRunResponse(
+            batch_id=batch_id,
+            status="completed",
+            message=f"ニュース収集完了: {collected_count}件収集、{saved_count}件保存",
+            processing_time_seconds=processing_time,
+            total_collected=collected_count,
+            total_curated=saved_count,
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"ニュース収集に失敗しました: {str(e)}")
+
+
 @router.get("/news/digest/history", response_model=List[schemas.DailyDigestResponse])
 async def get_digest_history(
     limit: int = Query(7, ge=1, le=30),

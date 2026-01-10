@@ -355,6 +355,15 @@ export const newsApi = {
       body: JSON.stringify({ hours_back: hoursBack || 24 }),
     });
   },
+
+  /**
+   * Simple news refresh (optimized for serverless)
+   */
+  refreshNews: async (): Promise<NewsBatchRunResponse> => {
+    return fetchApi<NewsBatchRunResponse>("/api/news/refresh", {
+      method: "POST",
+    });
+  },
 };
 
 // System Status API

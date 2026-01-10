@@ -2,10 +2,10 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useNews, useRunNewsBatch } from "@/hooks/useNews";
+import { useNews, useRunNewsBatch, useRefreshNews } from "@/hooks/useNews";
 import NewsCard from "@/components/NewsCard";
 import Skeleton from "@/components/Skeleton";
-import { ArrowLeft, Newspaper, RefreshCw, Filter, Play } from "lucide-react";
+import { ArrowLeft, Newspaper, RefreshCw, Filter, Play, Download } from "lucide-react";
 import Link from "next/link";
 import type { CuratedNews } from "@/lib/types";
 
@@ -17,6 +17,7 @@ export default function NewsPage() {
     min_score: minScore,
   });
   const runBatch = useRunNewsBatch();
+  const refreshNews = useRefreshNews();
 
   const handleRunBatch = async () => {
     if (confirm("ニュースバッチ処理を実行しますか？（数分かかることがあります）")) {
@@ -27,6 +28,17 @@ export default function NewsPage() {
         console.error("Batch run failed:", error);
         alert("バッチ処理に失敗しました");
       }
+    }
+  };
+
+  const handleRefreshNews = async () => {
+    try {
+      const result = await refreshNews.mutateAsync();
+      alert(result.message || "ニュースを再取得しました");
+      refetch();
+    } catch (error) {
+      console.error("News refresh failed:", error);
+      alert("ニュース再取得に失敗しました");
     }
   };
 
@@ -53,6 +65,16 @@ export default function NewsPage() {
             AI分析による重要ニュース一覧
           </p>
         </div>
+        <button
+          onClick={handleRefreshNews}
+          disabled={refreshNews.isPending}
+          className="btn btn-primary flex items-center gap-2 text-sm"
+        >
+          <Download className={`w-4 h-4 ${refreshNews.isPending ? "animate-spin" : ""}`} />
+          <span className="hidden sm:inline">
+            {refreshNews.isPending ? "取得中..." : "ニュース再取得"}
+          </span>
+        </button>
         <button
           onClick={handleRunBatch}
           disabled={runBatch.isPending}
@@ -159,17 +181,27 @@ export default function NewsPage() {
           <p className="text-sm text-gray-400 mb-4">
             {minScore > 0
               ? `スコア${minScore}以上のニュースはありません`
-              : "バッチ処理を実行してニュースを収集してください"}
+              : "ニュースを再取得してください"}
           </p>
           {minScore === 0 && (
-            <button
-              onClick={handleRunBatch}
-              disabled={runBatch.isPending}
-              className="btn btn-primary inline-flex items-center gap-2"
-            >
-              <Play className={`w-4 h-4 ${runBatch.isPending ? "animate-spin" : ""}`} />
-              {runBatch.isPending ? "処理中..." : "バッチ処理を実行"}
-            </button>
+            <div className="flex gap-3 justify-center flex-wrap">
+              <button
+                onClick={handleRefreshNews}
+                disabled={refreshNews.isPending}
+                className="btn btn-primary inline-flex items-center gap-2"
+              >
+                <Download className={`w-4 h-4 ${refreshNews.isPending ? "animate-spin" : ""}`} />
+                {refreshNews.isPending ? "取得中..." : "ニュースを再取得"}
+              </button>
+              <button
+                onClick={handleRunBatch}
+                disabled={runBatch.isPending}
+                className="btn btn-secondary inline-flex items-center gap-2"
+              >
+                <Play className={`w-4 h-4 ${runBatch.isPending ? "animate-spin" : ""}`} />
+                {runBatch.isPending ? "処理中..." : "バッチ処理を実行"}
+              </button>
+            </div>
           )}
         </div>
       )}
