@@ -1,53 +1,21 @@
 """
 Pure Price Press - Main FastAPI Application
 バイアスのかかっていない真実のニュースをお金の動きから分析する
+
+Optimized for Vercel Serverless deployment.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
 import uvicorn
 
-from database import init_db, close_db
 from api.routes import router as api_router
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Lifespan context manager for startup and shutdown events.
-    Optimized for Vercel Serverless - no background monitors.
-    """
-    # Startup
-    print("=" * 60)
-    print("Pure Price Press - Starting up...")
-    print("=" * 60)
-
-    # Initialize database
-    init_db()
-
-    # Note: Background monitoring is handled by GitHub Actions, not here
-    # This is a serverless deployment, so no persistent background tasks
-    print("✓ Database initialized")
-    print("  (Price monitoring via GitHub Actions)")
-
-    print("=" * 60)
-    print("✓ Pure Price Press is ready")
-    print("=" * 60)
-
-    yield
-
-    # Shutdown
-    print("\nPure Price Press - Shutting down...")
-    close_db()
-    print("✓ Pure Price Press shutdown complete")
-
-
-# Initialize FastAPI app
+# Initialize FastAPI app (no lifespan for serverless compatibility)
 app = FastAPI(
     title="Pure Price Press API",
     description="バイアスのかかっていない真実のニュースをお金の動きから分析する",
     version="1.0.0",
-    lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json"
