@@ -151,6 +151,17 @@ export interface CuratedNews {
   verification_passed: boolean;
   digest_date: string;
   created_at: string;
+  // Display duration and importance tracking
+  first_seen_at: string | null;
+  last_seen_at: string | null;
+  reporting_days: number;
+  is_pinned: boolean;
+  pinned_at: string | null;
+  effective_score: number | null;
+  // Computed display info (from API)
+  remaining_display_time: string | null;
+  score_label: string | null;
+  score_color: string | null;
 }
 
 export interface DailyDigest {

@@ -9,15 +9,22 @@ import {
   Clock,
   Tag,
   Layers,
+  Pin,
+  Flame,
+  Timer,
 } from "lucide-react";
 
 interface NewsCardProps {
   news: CuratedNews;
   compact?: boolean;
   onClick?: (news: CuratedNews) => void;
+  onPinToggle?: (news: CuratedNews) => void;
 }
 
-export default function NewsCard({ news, compact = false, onClick }: NewsCardProps) {
+export default function NewsCard({ news, compact = false, onClick, onPinToggle }: NewsCardProps) {
+  // Use effective_score if available, otherwise fall back to importance_score
+  const displayScore = news.effective_score ?? news.importance_score;
+
   const getScoreColor = (score: number) => {
     if (score >= 8) return "text-red-500 bg-red-500/20";
     if (score >= 6) return "text-yellow-500 bg-yellow-500/20";
@@ -26,6 +33,8 @@ export default function NewsCard({ news, compact = false, onClick }: NewsCardPro
   };
 
   const getScoreLabel = (score: number) => {
+    // Use API-provided label if available
+    if (news.score_label) return news.score_label;
     if (score >= 8) return "必見";
     if (score >= 6) return "重要";
     if (score >= 4) return "参考";
@@ -96,6 +105,13 @@ export default function NewsCard({ news, compact = false, onClick }: NewsCardPro
     }
   };
 
+  const handlePinClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onPinToggle) {
+      onPinToggle(news);
+    }
+  };
+
   // ソース数バッジ（2以上の場合のみ表示）
   const SourceCountBadge = () => {
     if (!news.source_count || news.source_count <= 1) return null;
@@ -107,20 +123,64 @@ export default function NewsCard({ news, compact = false, onClick }: NewsCardPro
     );
   };
 
+  // ピン留めバッジ
+  const PinBadge = () => {
+    if (!news.is_pinned) return null;
+    return (
+      <span className="text-xs px-2 py-0.5 bg-orange-500/20 text-orange-400 rounded flex items-center gap-1">
+        <Pin className="w-3 h-3" />
+        固定
+      </span>
+    );
+  };
+
+  // 連日報道バッジ（2日以上の場合のみ表示）
+  const ReportingDaysBadge = () => {
+    if (!news.reporting_days || news.reporting_days <= 1) return null;
+    return (
+      <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-400 rounded flex items-center gap-1">
+        <Flame className="w-3 h-3" />
+        {news.reporting_days}日連続
+      </span>
+    );
+  };
+
+  // 残り表示時間
+  const RemainingTimeBadge = () => {
+    if (!news.remaining_display_time || news.remaining_display_time === "無制限") return null;
+    if (news.remaining_display_time === "期限切れ") {
+      return (
+        <span className="text-xs px-2 py-0.5 bg-gray-500/20 text-gray-400 rounded flex items-center gap-1">
+          <Timer className="w-3 h-3" />
+          期限切れ
+        </span>
+      );
+    }
+    return (
+      <span className="text-xs px-2 py-0.5 bg-gray-500/20 text-gray-300 rounded flex items-center gap-1">
+        <Timer className="w-3 h-3" />
+        {news.remaining_display_time}
+      </span>
+    );
+  };
+
   if (compact) {
     return (
       <div
         onClick={handleClick}
-        className="card p-3 hover:border-brand-accent/50 transition-all cursor-pointer"
+        className={`card p-3 hover:border-brand-accent/50 transition-all cursor-pointer ${news.is_pinned ? "border-orange-500/50 bg-orange-500/5" : ""}`}
       >
         <div className="flex items-start gap-3">
+          {/* Pin indicator */}
+          {news.is_pinned && (
+            <Pin className="w-3 h-3 text-orange-400 flex-shrink-0 mt-1" />
+          )}
+
           {/* Score Badge */}
           <div
-            className={`flex-shrink-0 px-2 py-1 rounded text-xs font-bold ${getScoreColor(
-              news.importance_score
-            )}`}
+            className={`flex-shrink-0 px-2 py-1 rounded text-xs font-bold ${getScoreColor(displayScore)}`}
           >
-            {news.importance_score.toFixed(1)}
+            {displayScore.toFixed(1)}
           </div>
 
           {/* Content */}
@@ -136,6 +196,12 @@ export default function NewsCard({ news, compact = false, onClick }: NewsCardPro
                   <span className="text-purple-400">{news.source_count}社</span>
                 </>
               )}
+              {news.reporting_days > 1 && (
+                <>
+                  <span>•</span>
+                  <span className="text-red-400">{news.reporting_days}日連続</span>
+                </>
+              )}
               {getImpactIcon(news.impact_direction)}
             </div>
           </div>
@@ -149,21 +215,33 @@ export default function NewsCard({ news, compact = false, onClick }: NewsCardPro
   return (
     <div
       onClick={handleClick}
-      className="card p-4 hover:border-brand-accent/50 transition-all cursor-pointer"
+      className={`card p-4 hover:border-brand-accent/50 transition-all cursor-pointer ${news.is_pinned ? "border-orange-500/50 bg-orange-500/5" : ""}`}
     >
       <div className="flex items-start gap-4">
-        {/* Score Badge */}
+        {/* Score Badge with Pin Button */}
         <div className="flex-shrink-0 text-center">
           <div
-            className={`w-14 h-14 rounded-lg flex flex-col items-center justify-center ${getScoreColor(
-              news.importance_score
-            )}`}
+            className={`w-14 h-14 rounded-lg flex flex-col items-center justify-center ${getScoreColor(displayScore)}`}
           >
             <span className="text-lg font-bold">
-              {news.importance_score.toFixed(1)}
+              {displayScore.toFixed(1)}
             </span>
-            <span className="text-[10px]">{getScoreLabel(news.importance_score)}</span>
+            <span className="text-[10px]">{getScoreLabel(displayScore)}</span>
           </div>
+          {/* Pin button */}
+          {onPinToggle && (
+            <button
+              onClick={handlePinClick}
+              className={`mt-1 p-1 rounded transition-colors ${
+                news.is_pinned
+                  ? "text-orange-400 bg-orange-500/20 hover:bg-orange-500/30"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-white/10"
+              }`}
+              title={news.is_pinned ? "固定解除" : "固定する"}
+            >
+              <Pin className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Content */}
@@ -179,8 +257,17 @@ export default function NewsCard({ news, compact = false, onClick }: NewsCardPro
 
           {/* Meta Info */}
           <div className="flex flex-wrap items-center gap-2 mt-3">
+            {/* ピン留めバッジ */}
+            <PinBadge />
+
+            {/* 連日報道バッジ */}
+            <ReportingDaysBadge />
+
             {/* ソース数バッジ */}
             <SourceCountBadge />
+
+            {/* 残り表示時間 */}
+            <RemainingTimeBadge />
 
             {/* カテゴリー */}
             {news.category && (

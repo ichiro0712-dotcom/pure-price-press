@@ -86,3 +86,18 @@ export function useRefreshNews() {
     },
   });
 }
+
+/**
+ * Hook to toggle pin status for a news item
+ */
+export function useToggleNewsPin() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CuratedNews, Error, number>({
+    mutationFn: (id) => newsApi.togglePin(id),
+    onSuccess: () => {
+      // Invalidate news queries after pin toggle
+      queryClient.invalidateQueries({ queryKey: queryKeys.news });
+    },
+  });
+}

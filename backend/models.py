@@ -307,6 +307,12 @@ class CuratedNews(Base):
         analysis_stage_2: Deep analysis
         analysis_stage_3: Verification analysis
         analysis_stage_4: Final judgment
+        first_seen_at: When this news was first detected
+        last_seen_at: When this news was last seen in feeds
+        reporting_days: Number of days this news has been reported
+        is_pinned: Whether user pinned this news
+        pinned_at: When the news was pinned
+        effective_score: Calculated score with boosts and decay
         created_at: When this was created
     """
     __tablename__ = "curated_news"
@@ -337,6 +343,13 @@ class CuratedNews(Base):
     analysis_stage_2 = Column(JSON, nullable=True)  # Deep analysis result
     analysis_stage_3 = Column(JSON, nullable=True)  # Verification result
     analysis_stage_4 = Column(JSON, nullable=True)  # Final judgment
+    # New columns for display duration and importance tracking
+    first_seen_at = Column(DateTime(timezone=True), nullable=True)  # When first detected
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)  # When last seen in feeds
+    reporting_days = Column(Integer, default=1, nullable=False)  # Days of continuous reporting
+    is_pinned = Column(Boolean, default=False, nullable=False)  # User pinned
+    pinned_at = Column(DateTime(timezone=True), nullable=True)  # When pinned
+    effective_score = Column(Float, nullable=True)  # Score with boosts and decay applied
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     def __repr__(self):

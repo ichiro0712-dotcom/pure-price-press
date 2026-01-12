@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useNews, useRunNewsBatch, useRefreshNews } from "@/hooks/useNews";
+import { useNews, useRunNewsBatch, useRefreshNews, useToggleNewsPin } from "@/hooks/useNews";
 import NewsCard from "@/components/NewsCard";
 import Skeleton from "@/components/Skeleton";
 import { ArrowLeft, Newspaper, RefreshCw, Filter, Play, Download } from "lucide-react";
@@ -18,6 +18,7 @@ export default function NewsPage() {
   });
   const runBatch = useRunNewsBatch();
   const refreshNews = useRefreshNews();
+  const togglePin = useToggleNewsPin();
 
   const handleRunBatch = async () => {
     if (confirm("ニュースバッチ処理を実行しますか？（数分かかることがあります）")) {
@@ -39,6 +40,14 @@ export default function NewsPage() {
     } catch (error) {
       console.error("News refresh failed:", error);
       alert("ニュース再取得に失敗しました");
+    }
+  };
+
+  const handlePinToggle = async (news: CuratedNews) => {
+    try {
+      await togglePin.mutateAsync(news.id);
+    } catch (error) {
+      console.error("Pin toggle failed:", error);
     }
   };
 
@@ -167,6 +176,7 @@ export default function NewsPage() {
               key={news.id}
               news={news}
               onClick={(n: CuratedNews) => router.push(`/news/${n.id}`)}
+              onPinToggle={handlePinToggle}
             />
           ))}
         </div>

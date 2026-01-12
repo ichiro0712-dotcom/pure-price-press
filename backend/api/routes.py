@@ -421,40 +421,121 @@ async def get_curated_news(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     min_score: float = Query(0.0, ge=0.0, le=10.0),
+    include_expired: bool = Query(False, description="Include expired news items"),
     translate: bool = Query(True, description="Translate content to Japanese"),
     db: Session = Depends(get_db)
 ):
     """
-    Get curated news from today's digest.
+    Get curated news with display duration logic.
 
     - **limit**: Maximum number of news items to return
     - **offset**: Number of items to skip (pagination)
     - **min_score**: Minimum importance score filter
+    - **include_expired**: Include news past their display period
     - **translate**: Translate content to Japanese (default: true)
+
+    News display rules:
+    - Pinned news: Always displayed (unlimited)
+    - Effective score >= 8.0: 7 days
+    - Effective score 6.0-7.9: 3 days
+    - Effective score 4.0-5.9: 1 day
+    - Effective score < 4.0: Not displayed
     """
     from models import CuratedNews, DailyDigest
     from datetime import datetime, timezone, timedelta
+    from sqlalchemy import or_, and_, case
+    from services.news.scoring import (
+        calculate_effective_score,
+        should_display,
+        get_remaining_display_time,
+        format_remaining_time,
+        get_score_label
+    )
 
     try:
-        # Get today's digest date (start of day UTC)
-        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        now = datetime.now(timezone.utc)
 
-        # Query curated news
-        query = db.query(CuratedNews).filter(
-            CuratedNews.digest_date >= today - timedelta(days=1),
-            CuratedNews.importance_score >= min_score
-        ).order_by(CuratedNews.importance_score.desc())
+        # Base query
+        query = db.query(CuratedNews)
 
-        total_count = query.count()
-        news_items = query.offset(offset).limit(limit).all()
+        if not include_expired:
+            # Only include news that should be displayed:
+            # 1. Pinned news (always shown)
+            # 2. News within their display period based on effective score
+            # For simplicity, we fetch more and filter in Python
+            # (Complex SQL for dynamic display periods is hard to maintain)
+            query = query.filter(
+                or_(
+                    CuratedNews.is_pinned == True,
+                    CuratedNews.first_seen_at >= now - timedelta(days=7)  # Max display period
+                )
+            )
+
+        # Apply min_score filter on effective_score if available, else importance_score
+        query = query.filter(
+            or_(
+                CuratedNews.effective_score >= min_score,
+                and_(
+                    CuratedNews.effective_score == None,
+                    CuratedNews.importance_score >= min_score
+                )
+            )
+        )
+
+        # Fetch all matching news
+        all_news = query.all()
+
+        # Calculate effective scores and filter by display rules
+        displayable_news = []
+        for news in all_news:
+            # Calculate effective score if not set
+            first_seen = news.first_seen_at or news.created_at
+            eff_score = calculate_effective_score(
+                base_score=news.importance_score,
+                source_count=news.source_count or 1,
+                reporting_days=news.reporting_days or 1,
+                first_seen_at=first_seen,
+                is_pinned=news.is_pinned or False,
+                now=now
+            )
+
+            # Check if should display
+            if include_expired or should_display(first_seen, eff_score, news.is_pinned or False, now):
+                # Store computed values for response
+                news._computed_effective_score = eff_score
+                news._computed_remaining = get_remaining_display_time(first_seen, eff_score, news.is_pinned or False, now)
+                news._computed_label, news._computed_color = get_score_label(eff_score)
+                displayable_news.append(news)
+
+        # Sort: pinned first (by pinned_at desc), then by effective score desc
+        displayable_news.sort(
+            key=lambda n: (
+                0 if n.is_pinned else 1,  # Pinned first
+                -(n.pinned_at.timestamp() if n.pinned_at else 0),  # Most recently pinned first
+                -n._computed_effective_score,  # Higher score first
+                -(n.first_seen_at.timestamp() if n.first_seen_at else 0)  # Newer first
+            )
+        )
+
+        total_count = len(displayable_news)
+
+        # Apply pagination
+        news_items = displayable_news[offset:offset + limit]
 
         # Get latest digest
         digest = db.query(DailyDigest).order_by(
             DailyDigest.digest_date.desc()
         ).first()
 
-        # Convert to response models
-        news_responses = [schemas.CuratedNewsResponse.model_validate(n) for n in news_items]
+        # Convert to response models with computed fields
+        news_responses = []
+        for n in news_items:
+            response = schemas.CuratedNewsResponse.model_validate(n)
+            response.effective_score = n._computed_effective_score
+            response.remaining_display_time = format_remaining_time(n._computed_remaining)
+            response.score_label = n._computed_label
+            response.score_color = n._computed_color
+            news_responses.append(response)
 
         # Translate if requested
         if translate and news_responses:
@@ -515,6 +596,71 @@ async def get_news_detail(
         except Exception as e:
             print(f"Translation error: {e}")
             # Return untranslated if translation fails
+
+    return response
+
+
+@router.patch("/news/{news_id}/pin", response_model=schemas.CuratedNewsResponse)
+async def toggle_news_pin(
+    news_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Toggle pin status for a news item.
+
+    Pinned news:
+    - Always displayed (no expiration)
+    - Shown at the top of the news list
+    - Sorted by pinned_at (most recent first)
+    """
+    from models import CuratedNews
+    from datetime import datetime, timezone
+    from services.news.scoring import (
+        calculate_effective_score,
+        get_remaining_display_time,
+        format_remaining_time,
+        get_score_label
+    )
+
+    news = db.query(CuratedNews).filter(CuratedNews.id == news_id).first()
+    if not news:
+        raise HTTPException(status_code=404, detail="News not found")
+
+    now = datetime.now(timezone.utc)
+
+    # Toggle pin status
+    if news.is_pinned:
+        # Unpin
+        news.is_pinned = False
+        news.pinned_at = None
+    else:
+        # Pin
+        news.is_pinned = True
+        news.pinned_at = now
+
+    # Recalculate effective score
+    first_seen = news.first_seen_at or news.created_at
+    news.effective_score = calculate_effective_score(
+        base_score=news.importance_score,
+        source_count=news.source_count or 1,
+        reporting_days=news.reporting_days or 1,
+        first_seen_at=first_seen,
+        is_pinned=news.is_pinned,
+        now=now
+    )
+
+    db.commit()
+    db.refresh(news)
+
+    # Build response with computed fields
+    response = schemas.CuratedNewsResponse.model_validate(news)
+    response.effective_score = news.effective_score
+    response.remaining_display_time = format_remaining_time(
+        get_remaining_display_time(first_seen, news.effective_score, news.is_pinned, now)
+    )
+    label, color = get_score_label(news.effective_score)
+    response.score_label = label
+    response.score_color = color
 
     return response
 

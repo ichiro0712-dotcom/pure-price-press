@@ -311,6 +311,7 @@ export const newsApi = {
     limit?: number;
     offset?: number;
     min_score?: number;
+    include_expired?: boolean;
   }): Promise<NewsListResponse> => {
     const queryParams = new URLSearchParams();
     if (params?.limit !== undefined)
@@ -319,6 +320,8 @@ export const newsApi = {
       queryParams.append("offset", params.offset.toString());
     if (params?.min_score !== undefined)
       queryParams.append("min_score", params.min_score.toString());
+    if (params?.include_expired !== undefined)
+      queryParams.append("include_expired", params.include_expired.toString());
 
     const query = queryParams.toString();
     return fetchApi<NewsListResponse>(`/api/news${query ? `?${query}` : ""}`);
@@ -329,6 +332,15 @@ export const newsApi = {
    */
   getById: async (id: number): Promise<CuratedNews> => {
     return fetchApi<CuratedNews>(`/api/news/${id}`);
+  },
+
+  /**
+   * Toggle pin status for a news item
+   */
+  togglePin: async (id: number): Promise<CuratedNews> => {
+    return fetchApi<CuratedNews>(`/api/news/${id}/pin`, {
+      method: "PATCH",
+    });
   },
 
   /**

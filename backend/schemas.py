@@ -304,6 +304,17 @@ class CuratedNewsResponse(BaseModel):
     verification_passed: bool = True
     digest_date: datetime
     created_at: datetime
+    # New fields for display duration and importance tracking
+    first_seen_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
+    reporting_days: int = 1
+    is_pinned: bool = False
+    pinned_at: Optional[datetime] = None
+    effective_score: Optional[float] = None
+    # Computed display info (set by API)
+    remaining_display_time: Optional[str] = None
+    score_label: Optional[str] = None
+    score_color: Optional[str] = None
 
     class Config:
         from_attributes = True
